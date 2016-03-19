@@ -1,0 +1,19 @@
+@import 'panels.js';
+
+var togglePanels = function(context) {
+  var scriptPath = context.scriptPath;
+
+  var pluginRoot = [scriptPath stringByDeletingLastPathComponent];
+  loadFramework(pluginRoot);
+
+  [[PanelsManager sharedManager] loadOrToggle];
+};
+
+var showPanels = function(context) {
+  var scriptPath = context.scriptPath;
+
+  var pluginRoot = [scriptPath stringByDeletingLastPathComponent];
+  loadFramework(pluginRoot);
+
+  [[PanelsManager sharedManager] load];
+};
