@@ -9,7 +9,7 @@ This is my Sketch plugins list
 
  ```
  $ rm -rf ~/Library/Application\ Support/com.bohemiancoding.sketch3/Plugins
- $ git clone https://github.com/seanblanton/sketch.git ~/Library/Application\ Support/com.bohemiancoding.sketch3/
+ $ git clone https://github.com/seanblanton/sketch.git ~/Library/Application\ Support/com.bohemiancoding.sketch3/Plugins
 
 
  ````
