@@ -1,4 +1,4 @@
-# sketch
+# Sketch
 My Sketch plugins configuration
 
 # Sketch 
