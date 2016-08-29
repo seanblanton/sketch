@@ -1,12 +1,13 @@
-// Relabel Button Right Aligned Plugin (cmd ctrl j)
+// Relabel Button Plugin (cmd j)
+
 /*
   Author: Ken Moore (with bits from Alexander Kudymov's Dynamic Button plugin)
   Version: 0.7
 
-  The Relabel Button Right Aligned plugin lets you easily change the label of any 
-  *right aligned* button (a group containing a text layer and other visual elements). 
-  Just select the group, invoke the plugin, type the new label into the prompt and 
-  the button is resized to fit the new text with prior padding and right edge preserved.
+  The Relabel Button plugin lets you easily change the label of any button 
+  (a group containing a text layer and other visual elements). Just select the 
+  group and press Cmd+K, type the new label into the prompt, and the button is 
+  resized to fit the new text with prior padding preserved.   
 */
 
 // Display an error alert
@@ -39,19 +40,18 @@ function setButtonPadding(buttonRect, textLayer, layers, padding) {
   // loop through the layers and resize or reposition all (except textLayer)
   for (var i = 0; i < [layers count]; i++) {
     var layer = [layers objectAtIndex:i];
+
     if (layer != textLayer) {
       var layerFrame = [layer frame];
-      var textFrameRight = [textFrame x] + [textFrame width];
 
-      if ([layerFrame x] <= textFrameRight && [layerFrame x] + [layerFrame width] >= textFrameRight) {
-        // if the layer spans the x coordinate of the *right edge* of the text layer, assume it's
-        // a background layer and resize its width accordingly
+      if ([layerFrame x] <= [textFrame x] && [layerFrame x] + [layerFrame width] >= [textFrame x]) {
+        // if the layer spans the x coordinate of the text layer, assume it's a background layer
+        // and resize its width accordingly
         layerFrame.setWidth(layerFrame.width() + deltaWidth);
-        layerFrame.setX(layerFrame.x() - deltaWidth);
       }
-      else if ([layerFrame x] + [layerFrame width]  < textFrameRight) {
-        // if the layer is entirely to the left of the text layer's right edge, just reposition it
-        layerFrame.setX(layerFrame.x() - deltaWidth);
+      else if ([layerFrame x]  > [textFrame x]) {
+        // if the layer is entirely to the right of the text layer, just reposition it
+          layerFrame.setX(layerFrame.x() + deltaWidth);
       }
     }
   }
@@ -73,7 +73,6 @@ var selection = doc ? doc.findSelectedLayers() : nil
 
 // Begin validation of selection
 // Ensure there's only one layer selected
-var selection = context.selection
 if ([selection count] != 1) {
   invalidSelection();
 }
@@ -122,9 +121,9 @@ if (text) {
     [textLayer setTextBehaviour:0];
   }
 
-  // If the text layer is not right aligned, make it so
-  if ([textLayer textAlignment] != 1) {   // 0 = left, 1 = right, 2 = center, 3 = justified.
-    [textLayer setTextAlignment: 1];
+  // If the text layer is not left aligned, make it so
+  if ([textLayer textAlignment] != 0) {   // 0 = left, 1 = right, 2 = center, 3 = justified.
+    [textLayer setTextAlignment: 0];
   }
 
   // Set the text layer to the new text
