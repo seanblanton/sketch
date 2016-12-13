@@ -24,6 +24,8 @@
 - (void)togglePanel:(NSString *)identifier;
 - (void)showFullscreen;
 - (void)hideFullscreen;
+- (void)showOnboarding:(ICPanel *)panel;
+- (void)hideOnboarding;
 
 @end
 
@@ -33,6 +35,7 @@
 @property (nonatomic, weak) ICSketchApi *sketchApi;
 @property (nonatomic, retain) ICPanelView *panelView;
 - (id)initWithPanel:(ICPanel *)panel;
+- (id)initWithPanel:(ICPanel *)panel andURL:(NSURL *)url;
 - (void)callback:(NSString *)data;
 - (void)callAction:(NSString *)identifier;
 - (void)callAction:(NSString *)identifier data:(NSString *)data;

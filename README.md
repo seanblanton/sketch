@@ -1,9 +1,9 @@
 # Sketch
 My Sketch plugins configuration
 
-# Sketch
+# Sketch 
 
-This is my Sketch plugins list. Bunch of useful stuff in here
+This is my Sketch plugins list 
 
 # Install
 
@@ -12,4 +12,4 @@ This is my Sketch plugins list. Bunch of useful stuff in here
  $ git clone https://github.com/seanblanton/sketch.git ~/Library/Application\ Support/com.bohemiancoding.sketch3/Plugins
 
 
- ```
+ ````

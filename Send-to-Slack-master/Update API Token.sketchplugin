@@ -1,4 +1,0 @@
-#import 'utilities.js'
-#import 'api.js'
-
-requestAndSaveToken()

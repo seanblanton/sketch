@@ -1,13 +1,13 @@
 @import 'panels.js';
 
-var togglePanels = function(context) {
+function togglePanels(context) {
   loadFrameworks(context.scriptPath);
 
   [[ICPanelsManager sharedManager] loadOrToggle];
-};
+}
 
-var showPanels = function(context) {
+function showPanels(context) {
   loadFrameworks(context.scriptPath);
 
   [[ICPanelsManager sharedManager] load];
-};
+}

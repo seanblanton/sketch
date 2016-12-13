@@ -39,6 +39,9 @@
 @property (nonatomic) BOOL autoOpen;
 @property (nonatomic) BOOL disableCocoaScriptPreprocessor;
 @property (nonatomic) BOOL disableHeader;
+@property (nonatomic) BOOL onboarding;
+@property (nonatomic) CGSize onboardingSize;
+@property (readonly, copy, nonatomic) NSURL *onboardingURL;
 @property (nonatomic) NSUInteger order;
 @property (nonatomic) id runOnSelectionCommand;
 @property (nonatomic) id runOnLayerResizeFinishedCommand;

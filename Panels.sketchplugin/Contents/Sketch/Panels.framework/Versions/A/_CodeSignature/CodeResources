@@ -6,19 +6,19 @@
 	<dict>
 		<key>Resources/Info.plist</key>
 		<data>
-		N6H2FXZ/rbCEJkzWBV4qdTWlNTo=
+		rEbWfBufq5lR0NIInLSLLv8eckw=
 		</data>
 		<key>Resources/bridge.js</key>
 		<data>
-		CrpnAkY09n198liyfwq2C/RtslA=
+		PHLJKFo93Vn7PAPse7ZN66INVF4=
 		</data>
 		<key>Resources/close.tiff</key>
 		<data>
-		RQW4l5lOOU06P0NaQsJbhnjvdKQ=
+		cFyh57+Wn4XEKFUt2PJFlP3riM0=
 		</data>
 		<key>Resources/logo-top.tiff</key>
 		<data>
-		5f7/cqZGLiUQU2NHP0AuFaOZ6Lw=
+		0nyCuXDYm65MdWtzqP1HYhVIOm8=
 		</data>
 		<key>Resources/placeholder.png</key>
 		<data>
@@ -30,7 +30,7 @@
 		</data>
 		<key>Resources/settings.tiff</key>
 		<data>
-		RqkaqKnuy+QDm3cSkXz+tXcbkXM=
+		iN2h/hwgtoChMT52HXVKN3YwM3g=
 		</data>
 		<key>Resources/sketch-api.js</key>
 		<data>
@@ -65,11 +65,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			ZIAxJbzDUsdQ7T49f6mgrPir1eU=
+			eHjDCzY9g84L8dznSKmiUUTXWV0=
 			</data>
 			<key>hash2</key>
 			<data>
-			fgfm6gnWnVmGMBlVIQxTUHTPSoblGdssAl6ecGeNwa8=
+			5oKTZ0UEeA1G9We2SQiB3hnkS87PwEwQ1UieNYkpAu0=
 			</data>
 		</dict>
 		<key>Headers/ICPanelView.h</key>
@@ -153,11 +153,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			o74ynW3WabGecJYD1x8ZOUPOpD4=
+			J65tp96PLSEhGgDgz4lbL2CZJ4o=
 			</data>
 			<key>hash2</key>
 			<data>
-			52RtxSO8tNz59yhej+MV9rwWgOtZMjMNon8s0LZZ4Qw=
+			P6szbrzMGLVR66okcIJjR6OYeQ0UrvVkOCo1yfuetl8=
 			</data>
 		</dict>
 		<key>Headers/NSArray+Random.h</key>
@@ -208,44 +208,44 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			N6H2FXZ/rbCEJkzWBV4qdTWlNTo=
+			rEbWfBufq5lR0NIInLSLLv8eckw=
 			</data>
 			<key>hash2</key>
 			<data>
-			JBkZulzZMpT4rWQa8RkHC0yWh1bPnvH19JWTNxuYDCU=
+			lY43sOlK0w3FLpxLIDkvBladSTzrsoSPKUPksnwOh6E=
 			</data>
 		</dict>
 		<key>Resources/bridge.js</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			CrpnAkY09n198liyfwq2C/RtslA=
+			PHLJKFo93Vn7PAPse7ZN66INVF4=
 			</data>
 			<key>hash2</key>
 			<data>
-			rQPUJ21eVAfdM/p49GBtAx0dHeHb8DwSBHxFBmDk6yU=
+			uYPolOebb/PAlGXGXZE7/UHD68YVk4MgwQPhqh+TEKg=
 			</data>
 		</dict>
 		<key>Resources/close.tiff</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			RQW4l5lOOU06P0NaQsJbhnjvdKQ=
+			cFyh57+Wn4XEKFUt2PJFlP3riM0=
 			</data>
 			<key>hash2</key>
 			<data>
-			pLZbpKwlT6XqFxYZCD3jcKt8UiCs03pHMBcN3JoCaD8=
+			4xwqhty5tMJJvO5lLFuY1yJ2U1E0Gxby77TDMNTdUTU=
 			</data>
 		</dict>
 		<key>Resources/logo-top.tiff</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			5f7/cqZGLiUQU2NHP0AuFaOZ6Lw=
+			0nyCuXDYm65MdWtzqP1HYhVIOm8=
 			</data>
 			<key>hash2</key>
 			<data>
-			P4z6m5mq8sW7dYsywWb5cyPg9iYjyM+kM0u9CTSZuuc=
+			PCB13mM5oAu3eyOpjf4/VlKTBJwKtClsCtWxg5Uv1XM=
 			</data>
 		</dict>
 		<key>Resources/placeholder.png</key>
@@ -274,11 +274,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			RqkaqKnuy+QDm3cSkXz+tXcbkXM=
+			iN2h/hwgtoChMT52HXVKN3YwM3g=
 			</data>
 			<key>hash2</key>
 			<data>
-			ly8pUU0ObvcLpbG/nMOx99FEYtPGNaXQAVu2OMUniPI=
+			B+gi43zHhhwCDsCiBMcZrgPUF4fwLE4DReMphNg9PoM=
 			</data>
 		</dict>
 		<key>Resources/sketch-api.js</key>
@@ -310,6 +310,11 @@
 			<true/>
 			<key>weight</key>
 			<real>1100</real>
+		</dict>
+		<key>^Resources/Base\.lproj/</key>
+		<dict>
+			<key>weight</key>
+			<real>1010</real>
 		</dict>
 		<key>^version.plist$</key>
 		<true/>
@@ -369,6 +374,11 @@
 			<true/>
 			<key>weight</key>
 			<real>1100</real>
+		</dict>
+		<key>^Resources/Base\.lproj/</key>
+		<dict>
+			<key>weight</key>
+			<real>1010</real>
 		</dict>
 		<key>^[^/]+$</key>
 		<dict>
