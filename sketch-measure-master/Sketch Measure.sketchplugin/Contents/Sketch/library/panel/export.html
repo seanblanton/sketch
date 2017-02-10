@@ -14,6 +14,7 @@
     <!--
     // var data = {
     //     exportOption: 1,
+    //     order: 'alphabet',
     //     current: [0],
     //     selection: [1,2,3],
     //     pages: [
@@ -99,6 +100,104 @@
 
             });
         },
+        order = function(data){
+            var order = $('input[name=order]:checked').val();
+            $.each(data.pages, function(index, page){
+                if(page.artboards.length > 0){
+                    var artboardsData = page.artboards;
+
+                    if(order == 'reverse'){
+                        artboardsData = JSON.parse(JSON.stringify(page.artboards)).reverse();
+                    }
+                    else if(order == 'alphabet'){
+                        artboardsData = JSON.parse(JSON.stringify(page.artboards)).sort(function(a, b) {
+                            var nameA = a.name.toUpperCase(),
+                                nameB = b.name.toUpperCase();
+                            if (nameA < nameB) {
+                                return -1;
+                            }
+                            if (nameA > nameB) {
+                                return 1;
+                            }
+                            return 0;
+                        });
+                    }
+
+                    pagesData[page.objectID] = artboardsData;
+                    pagesName[page.objectID] = page.name;
+                    $.each(artboardsData, function(index, artboard){
+                        var $a = $('#aid-' + artboard.objectID);
+                        $a.removeClass('alt');
+                        if(index%2){
+                            $a.addClass('alt');
+                        }
+                        $a
+                            .removeAttr('cache-top')
+                            .css('top', index * 48);
+                    });
+                }
+            });
+            filter(data);
+        },
+        filter = function(data){
+            var $filter = $('#filter'),
+                filterText = $filter.val().toLowerCase().trim();
+
+            if(filterText){
+                $('#artboards-list li').hide();
+                var i = 0;
+                $.each(pagesData, function(index, artboardData){
+                    var $p = $('.p-' + i),
+                        cacheHeight = $p.attr('cache-height');
+                    if(!cacheHeight){
+                        var h = $p.css('height');
+                        $p.attr('cache-height', h);
+                    }
+
+                    var filtered = artboardData.filter(function(aData){
+                        return (pagesName[index] + ' ' + aData.name).toLowerCase().indexOf( filterText ) >= 0
+                    });
+
+                    $p.css('height', filtered.length * 48);
+
+                    $.each(filtered, function(index, aData){
+                        var $a = $('#aid-' + aData.objectID),
+                            cacheTop = $a.attr('cache-top');
+                        if(!cacheTop){
+                            var t = $a.css('top');
+                            $a.attr('cache-top', t);
+                        }
+
+                        $a
+                            .show()
+                            .css('top', index * 48);
+                    });
+
+                    i++;
+                });
+            }
+            else{
+                $('#artboards-list ul').each(function(){
+                    $(this).css('height', $(this).attr('cache-height'))
+                    $(this).removeAttr('cache-height');
+                });
+                $('#artboards-list li').each(function(){
+                    $(this).css('top', $(this).attr('cache-top')).show();
+                    $(this).removeAttr('cache-top');
+                });
+            }
+
+        },
+        checkedOption = function(){
+            if($('input[name=export-option]:checked').length > 0){
+                $('input[name=order]').attr('disabled', false);  
+            }
+            else{
+                $('input[name=order]').attr('disabled', true);
+            }
+        },
+        pagesData = {},
+        pagesName = {},
         init = function(data) {
             $('body').html([
                     '<div class="container">',
@@ -114,6 +213,7 @@
                                 '<ul class="checkbutton">',
                                     '<li class="c-all">' + _('All') + '</li>',
                                     '<li class="c-none">' + _('None') + '</li>',
+                                    '<li class="c-showing">' + _('Select only filtered') + '</li>',
                                     '<li class="c-selection">' + _('Selection of Sketch') + '</li>',
                                     '<li class="c-current">' + _('Current of Sketch') + '</li>',
                                 '</ul>',
@@ -123,13 +223,29 @@
                             '</div>',
                         '</div>',
                         '<div class="options">',
-                            '<label class="item mrb10">',
-                                '<div class="checkbox">',
-                                    '<input id="export-option" type="checkbox" name="export-option" value="1">',
-                                    '<label for="export-option"></label>',
+                            '<div class="item">',
+                                '<div class="orderbox">',
+                                    '<div class="radiobox positive-radio">',
+                                        '<input id="positive" type="radio" name="order" value="positive">',
+                                        '<label for="positive"></label>',
+                                    '</div>',
+                                    '<div class="radiobox reverse-radio">',
+                                        '<input id="reverse" type="radio" name="order" value="reverse">',
+                                        '<label for="reverse"></label>',
+                                    '</div>',
+                                    '<div class="radiobox alphabet-radio">',
+                                        '<input id="alphabet" type="radio" name="order" value="alphabet">',
+                                        '<label for="alphabet"></label>',
+                                    '</div>',
                                 '</div>',
-                                _('Advanced mode'),
-                            '</label>',
+                                '<label>',
+                                    '<div class="checkbox">',
+                                        '<input id="export-option" type="checkbox" name="export-option" value="1">',
+                                        '<label for="export-option"></label>',
+                                    '</div>',
+                                    _('Advanced mode'),
+                                '</label>',
+                            '</div>',
                         '</div>',
                         '<div class="footer">',
                             '<button id="submit" class="submit" disabled="disabled">' + _('Export') + '</button>',
@@ -148,10 +264,13 @@
                                             '</div>',
                                             page.name,
                                             '</label>');
-                    artboardsList.push('<ul class="p-' + index + '">');
+                    var ulHeight = 'height:' + page.artboards.length * 48 + 'px;';
+                    artboardsList.push('<ul class="p-' + index + '" style="' + ulHeight + '">');
                     $.each(page.artboards, function(index, artboard){
+                        var liTop = 'top:' + 48 * index + 'px;',
+                            classAlt = (index%2)? 'alt': '';
                         artboardsList.push(
-                                '<li title="' + artboard.name + '">',
+                                '<li id="aid-' + artboard.objectID + '" class="' + classAlt + '" title="' + artboard.name + '" style="' + liTop + '">',
                                     '<label class="artboard-item">',
                                     '<div class="checkbox">',
                                         '<input id="artboard-' + artboard.objectID + '" type="checkbox" class="page-' + pageIndex + '" name="artboards" value="' + artboard.objectID + '">',
@@ -196,6 +315,17 @@
                     checkVCheckbox();
                     checkPCheckbox();
                 })
+                .on('click', '.c-showing', function(){
+                    $('input[name=artboards]').prop("checked", false);
+                    $('#artboards-list li').each(function(){
+                        if($(this).css('display') != 'none'){
+                            $(this).find('input[name=artboards]').prop("checked", true);
+                        }
+                    });
+                    $('.opts-checkbox').blur();
+                    checkVCheckbox();
+                    checkPCheckbox();
+                })
                 .on('click', '.c-selection', function(){
                     $('input[name=artboards]').prop("checked", false);
                     $.each(data.selection, function(index, id){
@@ -222,21 +352,21 @@
                     $('.' + id + '[name=artboards]').prop('checked', true);
                 }
                 checkVCheckbox();
+                checkPCheckbox();
             });
 
             $('#filter').keyup(function(){
-                var $this = $(this),
-                    filterText = $this.val().toLowerCase();
-                $('#artboards-list li')
-                    .show()
-                    .filter(
-                        function(){
-                            var name = $( this ).text();
-                            return !(name.toLowerCase().indexOf( filterText ) >= 0);
-                        }
-                    )
-                    .hide();
+                filter(data);
             });
+
+            $('#' + data.order).attr('checked', true);
+
+
+            $('input[name=order]').change(function(){
+                order(data);
+            });
+
+            $('input[name=export-option]').change(checkedOption);
 
             $('#submit').click(function(){
                 var data = {}
@@ -247,7 +377,9 @@
                 data.exportOption = false;
                 if( $('input[name=export-option]:checked').length > 0 ) data.exportOption = true;
 
-                SMAction(data);
+                data.order = $('input[name=order]:checked').val();
+
+                SMAction('submit', data);
             });
 
             if(!data.selection){
@@ -263,6 +395,8 @@
 
             checkVCheckbox();
             checkPCheckbox();
+            order(data);
+            checkedOption();
             $('#artboards-list').scrollTop($('input[name=artboards]:checked').parent().parent().position().top);
         }
     // $(function(){

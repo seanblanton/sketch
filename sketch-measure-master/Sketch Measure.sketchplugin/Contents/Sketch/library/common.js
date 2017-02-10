@@ -3,13 +3,14 @@ var I18N = {},
         "zh-Hans": "zh-cn",
         "zh-Hant": "zh-tw"
     },
+    macOSVersion = NSDictionary.dictionaryWithContentsOfFile("/System/Library/CoreServices/SystemVersion.plist").objectForKey("ProductVersion") + "",
     lang = NSUserDefaults.standardUserDefaults().objectForKey("AppleLanguages").objectAtIndex(0),
+    lang = (macOSVersion >= "10.12")? lang.split("-").slice(0, -1).join("-"): lang,
     language = "";
 
 function _(str, data){
-    var str = (I18N[lang] && I18N[lang][str])? I18N[lang][str]: str;
-
-    var idx = -1;
+    var str = (I18N[lang] && I18N[lang][str])? I18N[lang][str]: str,
+        idx = -1;
     return str.replace(/\%\@/gi, function(){
         idx++;
         return data[idx];
@@ -18,14 +19,15 @@ function _(str, data){
 
 var SM = {
         init: function(context, command){
+            this.prefs = NSUserDefaults.standardUserDefaults();
+            this.context = context;
+
+            this.version = this.context.plugin.version() + "";
+            this.language = lang;
+            this.SMVersion = this.prefs.stringForKey("SMVersion") + "" || 0;
+            this.SMLanguage = this.prefs.stringForKey("SMLanguage") + "" || 0;
+
             this.extend(context);
-            this.document = context.document;
-            this.documentData = this.document.documentData();
-            this.window = this.document.window();
-            this.pages = this.document.pages();
-            this.page = this.document.currentPage();
-            this.artboard = this.page.currentArtboard();
-            this.current = this.artboard || this.page;
             this.pluginRoot = this.scriptPath
                     .stringByDeletingLastPathComponent()
                     .stringByDeletingLastPathComponent()
@@ -33,71 +35,92 @@ var SM = {
             this.pluginSketch = this.pluginRoot + "/Contents/Sketch/library";
 
             if(NSFileManager.defaultManager().fileExistsAtPath(this.pluginSketch + "/i18n/" + lang + ".json")){
-                language = NSString.stringWithContentsOfFile_encoding_error(this.pluginSketch + "/i18n/" + lang + ".json", NSUTF8StringEncoding, nil);
+                language = NSString.stringWithContentsOfFile_encoding_error(this.pluginSketch + "/i18n/" + lang + ".json", 4, nil);
 
                 I18N[lang] = JSON.parse(language);
                 language = "I18N[\'" + webI18N[lang] + "\'] = " + language;
             }
 
-            this.symbolsPage = this.find({key: "(name != NULL) && (name == %@)", match: "Symbols"}, this.document);
-            this.symbolsPage = (this.symbolsPage.count)? this.symbolsPage[0]: this.symbolsPage;
-            if(!this.symbolsPage){
-                this.symbolsPage = this.document.addBlankPage();
-                this.symbolsPage.setName("Symbols");
-                this.document.setCurrentPage(this.page);
+            coscript.setShouldKeepAround(true);
+
+            if(command && command == "init"){
+                this.manifest();
+                this.checkUpdate();
+                return false;
+            }
+
+            this.document = context.document;
+            this.documentData = this.document.documentData();
+            this.UIMetadata = context.document.mutableUIMetadata();
+            this.window = this.document.window();
+            this.pages = this.document.pages();
+            this.page = this.document.currentPage();
+            this.artboard = this.page.currentArtboard();
+            this.current = this.artboard || this.page;
+
+            if(command && command == "toolbar"){
+                this.Toolbar();
+                return false;
             }
 
             this.configs = this.getConfigs();
 
-            if(!this.configs){
+            if(!this.configs && command &&  command != "settings"){
                 if(!this.settingsPanel()) return false;
             }
 
-            switch (command) {
-                case "overlay":
-                    this.mark("overlay");
-                    break;
-                case "size":
-                    this.mark("sizes");
-                    break;
-                case "spacing":
-                    this.mark("spacings");
-                    break;
-                case "property":
-                    this.mark("properties");
-                    break;
-                case "note":
-                    this.mark("note");
-                    break;
-                case "width":
-                    this.lite("width");
-                    break;
-                case "height":
-                    this.lite("height");
-                    break;
-                case "locked":
-                    this.toggleLocked();
-                    break;
-                case "hidden":
-                    this.toggleHidden();
-                    break;
-                case "clear":
-                    this.clearAllMarks();
-                    break;
-                case "color":
-                    this.manageColors();
-                    break;
-                case "exportable":
-                    this.makeExportable();
-                    break;
-                case "setting":
-                    this.settingsPanel();
-                    break;
-                case "export":
-                    this.export();
-                    break;
+            if(command){
+                switch (command) {
+                    case "mark-overlays":
+                        this.markOverlays();
+                        break;
+                    case "lite-sizes":
+                        this.liteSizes();
+                        break;
+                    case "lite-spacings":
+                        this.liteSpacings();
+                        break;
+                    case "lite-properties":
+                        this.liteProperties();
+                        break;
+                    case "mark-sizes":
+                        this.markSizes();
+                        break;
+                    case "mark-spacings":
+                        this.markSpacings();
+                        break;
+                    case "mark-properties":
+                        this.markProperties();
+                        break;
+                    case "mark-note":
+                        this.markNote();
+                        break;
+                    case "locked":
+                        this.toggleLocked();
+                        break;
+                    case "hidden":
+                        this.toggleHidden();
+                        break;
+                    case "clear":
+                        this.clearAllMarks();
+                        break;
+                    case "color":
+                        this.manageColors();
+                        break;
+                    case "exportable":
+                        this.makeExportable();
+                        break;
+                    case "slice":
+                        this.makeExportable(true);
+                        break;
+                    case "settings":
+                        this.settingsPanel();
+                        break;
+                    case "export":
+                        this.export();
+                        break;
+                }
             }
-
         },
         extend: function( options, target ){
             var target = target || this;
@@ -114,6 +137,68 @@ var SM = {
     ShadowTypes = ["outer", "inner"],
     TextAligns = ["left", "right", "center", "justify", "left"],
     ResizingType = ["stretch", "corner", "resize", "float"];
+SM.extend({
+    checkUpdate: function(){
+        var self = this,
+            webView = WebView.new(),
+            windowObject = webView.windowScriptObject(),
+            timestamp = new Date().getTime(),
+            delegate = new MochaJSDelegate({
+                "webView:didFinishLoadForFrame:": (function(webView, webFrame){
+                    var packageJSON = JSON.parse(self.toJSString(windowObject.evaluateWebScript("document.body.innerText"))),
+                        currentVersion = self.toJSString( self.context.plugin.version() ),
+                        lastestVersion = self.toJSString( packageJSON.version ),
+                        updated = self.prefs.integerForKey("SMUpdated") || 0;
+
+                    if( lastestVersion > currentVersion && timestamp > (updated + 1000 * 60 * 60 * 24) ){
+                        self.prefs.setInteger_forKey(timestamp, "SMUpdated");
+                        self.SMPanel({
+                            url: self.pluginSketch + "/panel/update.html",
+                            width: 480,
+                            height: 229,
+                            hiddenClose: true,
+                            data: {
+                                title: _("New Version!"),
+                                content: _("Just checked Sketch Measure has a new version (%@)", [packageJSON.version]),
+                                donate: _("Donate"),
+                                cancel: _("Cancel"),
+                                download: _("Download")
+                            },
+                            callback: function( data ){
+                                NSWorkspace.sharedWorkspace().openURL(NSURL.URLWithString("http://utom.design/measure/?ref=update"));
+                            }
+                        });
+                    }
+                })
+            });
+        webView.setFrameLoadDelegate_(delegate.getClassInstance());
+        webView.setMainFrameURL_("http://utom.design/measure/package.json?" + timestamp);
+    }
+});
+
+SM.extend({
+    manifest: function(){
+      var self = this,
+          manifestURL = self.pluginSketch + "/i18n/manifest-" + lang + ".json";
+
+      if( ( !self.SMVersion || self.SMVersion != this.version ) || ( !self.SMLanguage || self.SMLanguage != self.language ) ){
+        log("manifest")
+        self.prefs.setObject_forKey (self.version, "SMVersion");
+        self.prefs.setObject_forKey (self.language, "SMLanguage");
+        if(NSFileManager.defaultManager().fileExistsAtPath(manifestURL)){
+            manifest = NSString.stringWithContentsOfFile_encoding_error(manifestURL, 4, nil);
+            self.writeFile({
+                content: manifest,
+                path: self.pluginRoot + "/Contents/Sketch/",
+                fileName: "manifest.json"
+            });
+            AppController.sharedInstance().pluginManager().reloadPlugins();
+        }
+
+      }
+
+    }
+})
 
 SM.extend({
     prefix: "SMConfigs2",
@@ -190,15 +275,32 @@ SM.extend({
     },
     toHTMLEncode: function(str){
         return this.toJSString(str)
-                    .replace(/\&/g, "&amp;")
                     .replace(/\</g, "&lt;")
                     .replace(/\>/g, '&gt;')
                     .replace(/\'/g, "&#39;")
                     .replace(/\"/g, "&quot;")
                     .replace(/\u2028/g,"\\u2028")
                     .replace(/\u2029/g,"\\u2029")
+                    .replace(/\ud83c|\ud83d/g,"")
                 ;
         // return str.replace(/\&/g, "&amp;").replace(/\"/g, "&quot;").replace(/\'/g, "&#39;").replace(/\</g, "&lt;").replace(/\>/g, '&gt;');
+    },
+    emojiToEntities: function(str) {
+      var emojiRanges = [
+            "\ud83c[\udf00-\udfff]", // U+1F300 to U+1F3FF
+            "\ud83d[\udc00-\ude4f]", // U+1F400 to U+1F64F
+            "\ud83d[\ude80-\udeff]"  // U+1F680 to U+1F6FF
+          ];
+        return str.replace(
+              new RegExp(emojiRanges.join("|"), "g"),
+              function(match) {
+                  var c = encodeURIComponent(match).split("%"),
+                      h = ((parseInt(c[1], 16) & 0x0F))
+                        + ((parseInt(c[2], 16) & 0x1F) << 12)
+                        + ((parseInt(c[3], 16) & 0x3F) << 6)
+                        + (parseInt(c[4], 16) & 0x3F);
+                  return "&#" + h.toString() + ";";
+              });
     },
     toSlug: function(str){
         return this.toJSString(str)
@@ -224,18 +326,18 @@ SM.extend({
     rectToJSON: function(rect, referenceRect) {
         if (referenceRect) {
             return {
-                x: Math.round( rect.x() - referenceRect.x() ),
-                y: Math.round( rect.y() - referenceRect.y() ),
-                width: Math.round( rect.width() ),
-                height: Math.round( rect.height() )
+                x: Math.round( ( rect.x() - referenceRect.x() ) * 10 ) / 10,
+                y: Math.round( ( rect.y() - referenceRect.y() ) * 10 ) / 10,
+                width: Math.round( rect.width() * 10 ) / 10,
+                height: Math.round( rect.height() * 10 ) / 10
             };
         }
 
         return {
-            x: Math.round( rect.x() ),
-            y: Math.round( rect.y() ),
-            width: Math.round( rect.width() ),
-            height: Math.round( rect.height() )
+            x: Math.round( rect.x() * 10 ) / 10,
+            y: Math.round( rect.y() * 10 ) / 10,
+            width: Math.round( rect.width() * 10 ) / 10,
+            height: Math.round( rect.height() * 10 ) / 10
         };
     },
     colorToJSON: function(color) {
@@ -245,7 +347,7 @@ SM.extend({
             b: Math.round(color.blue() * 255),
             a: color.alpha(),
             "color-hex": color.immutableModelObject().stringValueWithAlpha(false) + " " + Math.round(color.alpha() * 100) + "%",
-            "argb-hex": "#" + this.toHex(color.alpha() * 255) + color.hexValue(),
+            "argb-hex": "#" + this.toHex(color.alpha() * 255) + color.immutableModelObject().stringValueWithAlpha(false).replace("#", ""),
             "css-rgba": "rgba(" + [
                             Math.round(color.red() * 255),
                             Math.round(color.green() * 255),
@@ -385,9 +487,15 @@ SM.extend({
         if(styles.count() > 0){
             style = this.find({key: "(objectID != NULL) && (objectID == %@)", match: sharedObjectID}, styles);
         }
-        
+
         if(!style) return "";
         return this.toJSString(style.name());
+    },
+    updateContext: function(){
+        this.context.document = NSDocumentController.sharedDocumentController().currentDocument();
+        this.context.selection = this.context.document.selectedLayers();
+
+        return this.context;
     }
 });
 
@@ -422,6 +530,14 @@ SM.extend({
         var hex = Math.round(c).toString(16).toUpperCase();
         return hex.length == 1 ? "0" + hex :hex;
     },
+    hexToRgb:function(hex) {
+        var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: this.toHex(result[1]),
+            g: this.toHex(result[2]),
+            b: this.toHex(result[3])
+        } : null;
+    },
     isIntersect: function(targetRect, layerRect){
         return !(
             targetRect.maxX <= layerRect.x ||
@@ -451,17 +567,17 @@ SM.extend({
             container = container || this.current,
             items;
 
-        if( (container.class && container.class() == __NSArrayI) ){
-            items = container;
-        }
-        else if(container.pages){
+        if(container.pages){
             items = container.pages();
         }
         else if( this.is( container, MSSharedStyleContainer ) || this.is( container, MSSharedTextStyleContainer ) ){
             items = container.objectsSortedByName();
         }
-        else{
+        else if( container.children ){
             items = container.children();
+        }
+        else{
+            items = container;
         }
 
         var queryResult = items.filteredArrayUsingPredicate(predicate);
@@ -513,28 +629,40 @@ SM.extend({
 // configs.js
 SM.extend({
     getConfigs: function(container){
-        var container = container || this.symbolsPage,
-            command = this.command,
-            prefix = this.prefix,
-            configsData = command.valueForKey_onLayer(prefix, container);
+        var configsData;
+        if(container){
+            configsData = this.command.valueForKey_onLayer(this.prefix, container);
+        }
+        else{
+            configsData = this.UIMetadata.objectForKey(this.prefix);
+        }
+
         return JSON.parse(configsData);
     },
-    setConfigs: function(newConfigs, container){
-        var container = container || this.symbolsPage,
-            command = this.command,
-            prefix = this.prefix,
-            configs = this.extend(newConfigs, this.getConfigs(container) || {});
-
-        configs.timestamp = new Date().getTime();
-        var configsData = JSON.stringify(configs);
-        command.setValue_forKey_onLayer(configsData, prefix, container);
-        return configs;
+     setConfigs: function(newConfigs, container){
+        var configsData;
+        newConfigs.timestamp = new Date().getTime();
+        if(container){
+            configsData = this.extend(newConfigs, this.getConfigs(container) || {});
+            this.command.setValue_forKey_onLayer(JSON.stringify(configsData), this.prefix, container);
+        }
+        else{
+            configsData = this.extend(newConfigs, this.getConfigs() || {});
+            this.UIMetadata.setObject_forKey (JSON.stringify(configsData), this.prefix);
+        }
+        var saveDoc = this.addShape();
+        this.page.addLayers([saveDoc]);
+        this.removeLayer(saveDoc);
+        return configsData;
     },
     removeConfigs: function(container){
-        var container = container || this.symbolsPage,
-            command = this.command,
-            prefix = this.prefix;
-        command.setValue_forKey_onLayer(null, prefix, container)
+        if(container){
+            this.command.setValue_forKey_onLayer(null, prefix, container);
+        }
+        else{
+            configsData = this.UIMetadata.setObject_forKey (null, this.prefix);
+        }
+
     }
 });
 
@@ -748,6 +876,9 @@ SM.extend({
         text.setTextBehaviour(1);
         text.setTextBehaviour(0);
 
+        text.setTextBehaviour(1); // fixed for v40
+        text.setTextBehaviour(0); // fixed for v40
+
         // get rect
         var targetRect = this.getRect(target),
             arrowRect = this.getRect(arrow),
@@ -820,6 +951,168 @@ SM.extend({
         };
     }
 });
+// Toolbar.js
+
+SM.extend({
+    getImage: function(size, name){
+        var isRetinaDisplay = (NSScreen.mainScreen().backingScaleFactor() > 1)? true: false;
+            suffix = (isRetinaDisplay)? "@2x": "",
+            imageURL = NSURL.fileURLWithPath(this.pluginSketch + "/toolbar/" + name + suffix + ".png"),
+            image = NSImage.alloc().initWithContentsOfURL(imageURL);
+
+        return image
+    },
+    addImage: function(rect, name){
+        var view = NSImageView.alloc().initWithFrame(rect),
+            image = this.getImage(rect.size, name);
+        view.setImage(image);
+        return view;
+    },
+    addButton: function(rect, name, callAction){
+        var button = NSButton.alloc().initWithFrame(rect),
+            image = this.getImage(rect.size, name);
+
+        button.setImage(image);
+        button.setBordered(false);
+        button.sizeToFit();
+        button.setButtonType(NSMomentaryChangeButton)
+        button.setCOSJSTargetFunction(callAction);
+        button.setAction("callAction:");
+        return button;
+    },
+    Toolbar: function(){
+        var self = this,
+            identifier = "com.utom.measure",
+            threadDictionary = NSThread.mainThread().threadDictionary(),
+            Toolbar = threadDictionary[identifier];
+
+        if(!Toolbar){
+            Toolbar = NSPanel.alloc().init();
+            Toolbar.setStyleMask(NSTitledWindowMask + NSFullSizeContentViewWindowMask);
+            Toolbar.setBackgroundColor(NSColor.colorWithRed_green_blue_alpha(0.10, 0.10, 0.10, 1));
+            Toolbar.setTitleVisibility(NSWindowTitleHidden);
+            Toolbar.setTitlebarAppearsTransparent(true);
+
+            Toolbar.setFrame_display(NSMakeRect(0, 0, 584, 48), false);
+            Toolbar.setMovableByWindowBackground(true);
+            Toolbar.becomeKeyWindow();
+            Toolbar.setLevel(NSFloatingWindowLevel);
+
+            var contentView = Toolbar.contentView(),
+                closeButton = self.addButton( NSMakeRect(14, 14, 20, 20), "icon-close",
+                        function(sender){
+                            coscript.setShouldKeepAround(false);
+                            threadDictionary.removeObjectForKey(identifier);
+                            Toolbar.close();
+                        }),
+                overlayButton = self.addButton( NSMakeRect(64, 14, 20, 20), "icon-overlay",
+                        function(sender){
+                            self.updateContext();
+                            self.init(self.context, "mark-overlays");
+                        }),
+                sizesButton = self.addButton( NSMakeRect(112, 14, 20, 20), "icon-sizes",
+                        function(sender){
+                            self.updateContext();
+                            if(NSEvent.modifierFlags() == NSAlternateKeyMask){
+                                self.init(self.context, "mark-sizes");
+                            }
+                            else{
+                                self.init(self.context, "lite-sizes");
+                            }
+                        }),
+                spacingsButton = self.addButton( NSMakeRect(160, 14, 20, 20), "icon-spacings",
+                        function(sender){
+                            self.updateContext();
+                            if(NSEvent.modifierFlags() == NSAlternateKeyMask){
+                                self.init(self.context, "mark-spacings");
+                            }
+                            else{
+                                self.init(self.context, "lite-spacings");
+                            }
+                        }),
+                propertiesButton = self.addButton( NSMakeRect(208, 14, 20, 20), "icon-properties",
+                        function(sender){
+                            self.updateContext();
+                            if(NSEvent.modifierFlags() == NSAlternateKeyMask){
+                                self.init(self.context, "mark-properties");
+                            }
+                            else{
+                                self.init(self.context, "lite-properties");
+                            }
+
+                        }),
+                notesButton = self.addButton( NSMakeRect(258, 14, 20, 20), "icon-notes",
+                        function(sender){
+                            self.updateContext();
+                            self.init(self.context, "mark-note");
+                        }),
+                exportableButton = self.addButton( NSMakeRect(306, 14, 20, 20), "icon-slice",
+                        function(sender){
+                            self.updateContext();
+                            if(NSEvent.modifierFlags() == NSAlternateKeyMask){
+                                self.init(self.context, "slice");
+                            }
+                            else{
+                                self.init(self.context, "exportable");
+                            }
+                        }),
+                colorsButton = self.addButton( NSMakeRect(354, 14, 20, 20), "icon-colors",
+                        function(sender){
+                            self.updateContext();
+                            self.init(self.context, "color");
+                        }),
+                exportButton = self.addButton( NSMakeRect(402, 14, 20, 20), "icon-export",
+                        function(sender){
+                            self.updateContext();
+                            self.init(self.context, "export");
+                        }),
+                hiddenButton = self.addButton( NSMakeRect(452, 14, 20, 20), "icon-hidden",
+                        function(sender){
+                            self.updateContext();
+                            self.init(self.context, "hidden");
+                        }),
+                lockedButton = self.addButton( NSMakeRect(500, 14, 20, 20), "icon-locked",
+                        function(sender){
+                            self.updateContext();
+                            self.init(self.context, "locked");
+                        }),
+                settingsButton = self.addButton( NSMakeRect(548, 14, 20, 20), "icon-settings",
+                        function(sender){
+                            self.updateContext();
+                            self.init(self.context, "settings");
+                        }),
+                divider1 = self.addImage( NSMakeRect(48, 8, 2, 32), "divider"),
+                divider2 = self.addImage( NSMakeRect(242, 8, 2, 32), "divider"),
+                divider3 = self.addImage( NSMakeRect(436, 8, 2, 32), "divider");
+
+            contentView.addSubview(closeButton);
+            contentView.addSubview(overlayButton);
+            contentView.addSubview(sizesButton);
+            contentView.addSubview(spacingsButton);
+            contentView.addSubview(propertiesButton);
+
+            contentView.addSubview(notesButton);
+            contentView.addSubview(exportableButton);
+            contentView.addSubview(colorsButton);
+            contentView.addSubview(exportButton);
+
+            contentView.addSubview(hiddenButton);
+            contentView.addSubview(lockedButton);
+            contentView.addSubview(settingsButton);
+
+            contentView.addSubview(divider1);
+            contentView.addSubview(divider2);
+            contentView.addSubview(divider3);
+
+            threadDictionary[identifier] = Toolbar;
+
+            Toolbar.center();
+            Toolbar.makeKeyAndOrderFront(nil);
+        }
+
+
+    }
+})
 
 // Panel.js
 SM.extend({
@@ -829,8 +1122,8 @@ SM.extend({
                 url: this.pluginSketch + "/panel/settings.html",
                 width: 240,
                 height: 316,
-                state: 1,
                 floatWindow: false,
+                hiddenClose: false,
                 data: {
                     density: 2,
                     unit: "dp/sp"
@@ -840,16 +1133,21 @@ SM.extend({
             result = false;
         options.url = encodeURI("file://" + options.url);
 
-        COScript.currentCOScript().setShouldKeepAround_(true);
-
         var frame = NSMakeRect(0, 0, options.width, (options.height + 32)),
             titleBgColor = NSColor.colorWithRed_green_blue_alpha(0.1, 0.1, 0.1, 1),
             contentBgColor = NSColor.colorWithRed_green_blue_alpha(0.13, 0.13, 0.13, 1);
 
+        if(options.identifier){
+            var threadDictionary = NSThread.mainThread().threadDictionary();
+            if(threadDictionary[options.identifier]){
+                return false;
+            }
+        }
+
         var Panel = NSPanel.alloc().init();
         Panel.setTitleVisibility(NSWindowTitleHidden);
         Panel.setTitlebarAppearsTransparent(true);
-        Panel.standardWindowButton(NSWindowCloseButton).setHidden(false);
+        Panel.standardWindowButton(NSWindowCloseButton).setHidden(options.hiddenClose);
         Panel.standardWindowButton(NSWindowMiniaturizeButton).setHidden(true);
         Panel.standardWindowButton(NSWindowZoomButton).setHidden(true);
         Panel.setFrame_display(frame, false);
@@ -861,14 +1159,11 @@ SM.extend({
             delegate = new MochaJSDelegate({
                 "webView:didFinishLoadForFrame:": (function(webView, webFrame){
                         var SMAction = [
-                                    "function SMAction(data){",
-                                        "window.SMData = encodeURI(JSON.stringify(data));",
-                                        "window.location.hash = 'submit';",
-                                        // "console.log(SMData)",
-                                    "}",
-                                    "function SMImportAction(data){",
-                                        "window.location.hash = 'import';",
-                                        // "console.log(SMData)",
+                                    "function SMAction(hash, data){",
+                                        "if(data){",
+                                            "window.SMData = encodeURI(JSON.stringify(data));",
+                                        "}",
+                                        "window.location.hash = hash;",
                                     "}"
                                 ].join(""),
                             DOMReady = [
@@ -882,32 +1177,55 @@ SM.extend({
                         windowObject.evaluateWebScript(SMAction);
                         windowObject.evaluateWebScript(language);
                         windowObject.evaluateWebScript(DOMReady);
-                        COScript.currentCOScript().setShouldKeepAround_(false);
                     }),
                 "webView:didChangeLocationWithinPageForFrame:": (function(webView, webFrame){
                         var request = NSURL.URLWithString(webView.mainFrameURL()).fragment();
 
-                        if( options.state ){
-                            Panel.orderOut(nil);
-                            NSApp.stopModal();
-                            if(request == "submit"){
-                                var data = JSON.parse(decodeURI(windowObject.valueForKey("SMData")));
-                                options.callback(data);
-                                result = true;
+                        if(request == "submit"){
+                            var data = JSON.parse(decodeURI(windowObject.valueForKey("SMData")));
+                            options.callback(data);
+                            result = true;
+                            if(!options.floatWindow){
+                                windowObject.evaluateWebScript("window.location.hash = 'close';");
                             }
                         }
-                        else if(request == "import"){
-                            if( options.importCallback(Panel, NSApp) ){
-                                 self.message(_("Import complete!"));
+                        else if(request == "close"){
+                            if(!options.floatWindow){
+                                Panel.orderOut(nil);
+                                NSApp.stopModal();
                             }
                             else{
-                                windowObject.evaluateWebScript("window.location.hash = '';");
+                                Panel.close();
                             }
                         }
-                        else if(request == "complete"){
-
+                        else if(request == "donate"){
+                            NSWorkspace.sharedWorkspace().openURL(NSURL.URLWithString("http://utom.design/measure/donate.html?ref=update"));
+                            // windowObject.evaluateWebScript("window.location.hash = 'close';");
                         }
-                        COScript.currentCOScript().setShouldKeepAround_(false);
+                        else if(request == "import"){
+                            if( options.importCallback(windowObject) ){
+                                 self.message(_("Import complete!"));
+                            }
+                        }
+                        else if(request == "export"){
+                            if( options.exportCallback(windowObject) ){
+                                 self.message(_("Export complete!"));
+                            }
+                        }
+                        else if(request == "export-xml"){
+                            if( options.exportXMLCallback(windowObject) ){
+                                 self.message(_("Export complete!"));
+                            }
+                        }
+                        else if(request == "add"){
+                            options.addCallback(windowObject);
+                        }
+                        else if(request == "focus"){
+                            var point = Panel.currentEvent().locationInWindow(),
+                                y = NSHeight(Panel.frame()) - point.y - 32;
+                            windowObject.evaluateWebScript("lookupItemInput(" + point.x + ", " + y + ")");
+                        }
+                        windowObject.evaluateWebScript("window.location.hash = '';");
                     })
             });
 
@@ -925,13 +1243,25 @@ SM.extend({
         var closeButton = Panel.standardWindowButton(NSWindowCloseButton);
         closeButton.setCOSJSTargetFunction(function(sender) {
             var request = NSURL.URLWithString(webView.mainFrameURL()).fragment();
-            if(options.state == 0 && request == "submit"){
+
+            if(options.floatWindow && request == "submit"){
                 data = JSON.parse(decodeURI(windowObject.valueForKey("SMData")));
                 options.callback(data);
             }
+
+            if(options.identifier){
+                threadDictionary.removeObjectForKey(options.identifier);
+            }
+
             self.wantsStop = true;
-            Panel.orderOut(nil);
-            NSApp.stopModal();
+            if(options.floatWindow){
+                Panel.close();
+            }
+            else{
+                Panel.orderOut(nil);
+                NSApp.stopModal();
+            }
+
         });
         closeButton.setAction("callAction:");
 
@@ -948,10 +1278,16 @@ SM.extend({
             Panel.becomeKeyWindow();
             Panel.setLevel(NSFloatingWindowLevel);
             Panel.center();
-            Panel.orderFront(NSApp.mainWindow());
+            Panel.makeKeyAndOrderFront(nil);
+            if(options.identifier){
+                threadDictionary[options.identifier] = Panel;
+            }
             return webView;
         }
         else{
+            if(options.identifier){
+                threadDictionary[options.identifier] = Panel;
+            }
             NSApp.runModalForWindow(Panel);
         }
 
@@ -975,7 +1311,7 @@ SM.extend({
                 self.configs = self.setConfigs(data);
             }
         });
-    
+
     },
     sizesPanel: function(){
         var self = this,
@@ -1025,7 +1361,7 @@ SM.extend({
         return this.SMPanel({
             url: this.pluginSketch + "/panel/properties.html",
             width: 280,
-            height: 324,
+            height: 356,
             data: data,
             callback: function( data ){
                 self.configs = self.setConfigs({
@@ -1036,132 +1372,8 @@ SM.extend({
     }
 });
 
-// mark.js
+// mark-base.js
 SM.extend({
-    mark: function(type){
-        var self = this,
-            selection = this.selection;
-
-        if(type == "sizes"){
-            if( selection.count() <= 0 ){
-                this.message(_("Select a layer to make marks!"));
-                return false;
-            }
-            if(!this.sizesPanel()) return false;
-            var sizeStyles = {
-                    layer: this.sharedLayerStyle("@Size / Layer", this.colors.size.layer),
-                    text: this.sharedTextStyle("@Size / Text", this.colors.size.text, 2)
-                };
-
-            for (var i = 0; i < selection.count(); i++) {
-                var target = selection[i],
-                    objectID = target.objectID();
-
-                if(this.configs.sizes.widthPlacement){
-                    this.sizes({
-                        name: "WIDTH#" + objectID,
-                        type: "width",
-                        target: target,
-                        placement: this.configs.sizes.widthPlacement,
-                        styles: sizeStyles,
-                        byPercentage: this.configs.sizes.byPercentage
-                    });
-                }
-
-                if(this.configs.sizes.heightPlacement){
-                    this.sizes({
-                        name: "HEIGHT#" + objectID,
-                        type: "height",
-                        target: target,
-                        placement: this.configs.sizes.heightPlacement,
-                        styles: sizeStyles,
-                        byPercentage: this.configs.sizes.byPercentage
-                    });
-                }
-            }
-        }
-        else if(type == "spacings"){
-            if( !(selection.count() > 0 && selection.count() < 3) ){
-                this.message(_("Select 1 or 2 layers to make marks!"));
-                return false;
-            }
-            if(!this.spacingsPanel()) return false;
-            var target = (selection.count() == 1)? selection[0]: selection[1],
-                layer = (selection.count() == 1)? this.current: selection[0],
-                placements = ["top", "right", "bottom", "left"];
-
-            if( this.isIntersect(this.getRect(target), this.getRect(layer)) ){
-                placements = this.configs.spacings.placements;
-            }
-
-            var spacingStyles = {
-                    layer: this.sharedLayerStyle("@Spacing / Layer", this.colors.spacing.layer),
-                    text: this.sharedTextStyle("@Spacing / Text", this.colors.spacing.text, 2)
-                };
-            placements.forEach(function(placement) {
-                self.spacings({
-                    target: target,
-                    layer: layer,
-                    placement: placement,
-                    styles: spacingStyles,
-                    byPercentage: self.configs.spacings.byPercentage
-                });
-            });
-        }
-        else if(type == "properties"){
-            if( selection.count() <= 0 ){
-                this.message(_("Select a layer to make marks!"));
-                return false;
-            }
-
-            var target = selection[0];
-
-            if( /PROPERTY\#/.exec(target.parentGroup().name()) ){
-                this.resizeProperties(target.parentGroup());
-            }
-            else{
-                if(!this.propertiesPanel()) return false;
-
-                for (var i = 0; i < selection.count(); i++) {
-                    var target = selection[i];
-                    this.properties({
-                        target: target,
-                        placement: this.configs.properties.placement,
-                        properties: this.configs.properties.properties
-                    });
-                }
-            }
-        }
-        else if( type == "overlay"){
-            if( selection.count() <= 0 ){
-                this.message(_("Select a layer to make marks!"));
-                return false;
-            }
-            for (var i = 0; i < selection.count(); i++) {
-                this.overlay(selection[i]);
-            }
-        }
-        else if( type == "note"){
-            if( selection.count() <= 0 ){
-                this.message(_("Select a text layer to make marks!"));
-                return false;
-            }
-            var target = selection[0];
-
-            if( /NOTE\#/.exec(target.parentGroup().name()) && this.is(target, MSTextLayer) ){
-                this.resizeNote(target.parentGroup());
-            }
-            else{
-                for (var i = 0; i < selection.count(); i++) {
-                    var target = selection[i];
-                    if(this.is(target, MSTextLayer)){
-                        this.note(target);
-                    }
-                }
-            }
-        }
-
-    },
     sizes: function( options ){
         var options = this.extend(options, {}),
             name = options.name,
@@ -1205,7 +1417,7 @@ SM.extend({
                                 ( placement == "left" )? "left":
                                 ( distance.right >= distance.left )? "right":
                                 "left"
-                            ):  
+                            ):
                             (
                                 ( ruler.rect.width > (tempRect.width + 28) )? "middle":
                                 ( placement == "bottom" )? "bottom":
@@ -1353,7 +1565,7 @@ SM.extend({
         container.addLayers([overlay]);
 
         overlay.setStyle(overlayStyle);
-        overlay.setName("overlayer");
+        overlay.setName("overlay");
         overlayRect.setX(targetRect.x);
         overlayRect.setY(targetRect.y);
         overlayRect.setWidth(targetRect.width);
@@ -1399,7 +1611,7 @@ SM.extend({
         var self = this,
             options = this.extend(options, {
                 placement: "top",
-                properties: ["color", "border", "opacity", "radius", "shadow", "font-size", "line-height", "font-face", "character", "paragraph"]
+                properties: ["layer-name", "color", "border", "opacity", "radius", "shadow", "font-size", "line-height", "font-face", "character", "paragraph"]
             }),
             properties = options.properties,
             placement = options.placement,
@@ -1422,9 +1634,9 @@ SM.extend({
                         content.push("color: " + color);
                     }
                     else if( self.is(target, MSShapeGroup) ){
-                        var fillsJSON = self.getFills(targetStyle),
-                            fillJSON = fillsJSON.pop();
-
+                        var fillsJSON = self.getFills(targetStyle);
+                        if(fillsJSON.length <= 0) return false;
+                        var fillJSON = fillsJSON.pop();
                         content.push("fill: " + self.fillTypeContent(fillJSON))
                     }
 
@@ -1432,7 +1644,7 @@ SM.extend({
                 case "border":
                     var bordersJSON = self.getBorders(targetStyle);
                     if(bordersJSON.length <= 0) return false;
-                        borderJSON = bordersJSON.pop();
+                    var borderJSON = bordersJSON.pop();
                     content.push("border: " + self.convertUnit(borderJSON.thickness) + " " + borderJSON.position + "\r\n * " + self.fillTypeContent(borderJSON) );
                     break;
                 case "opacity":
@@ -1458,7 +1670,9 @@ SM.extend({
                     break;
                 case "line-height":
                     if(!self.is(target, MSTextLayer)) return false;
-                    content.push("line: " + self.convertUnit(target.lineSpacing(), true) + " (" + Math.round(target.lineSpacing() / target.fontSize() * 10) / 10  + ")" );
+                    var defaultLineHeight = target.font().defaultLineHeightForFont(),
+                        lineHeight = target.lineHeight() || defaultLineHeight;
+                    content.push("line: " + self.convertUnit(lineHeight, true) + " (" + Math.round(lineHeight / target.fontSize() * 10) / 10  + ")" );
                     break;
                 case "font-face":
                     if(!self.is(target, MSTextLayer)) return false;
@@ -1478,12 +1692,15 @@ SM.extend({
                         content.push("style-name: " + styleName);
                     }
                     break;
+        				case "layer-name":
+        					   content.push("layer-name: " + target.name());
+                     break;
                 default:
                     render = false;
                     break;
             }
         });
-        
+
         var objectID = target.objectID(),
             name = "PROPERTY#" + objectID,
             container = this.find({key: "(name != NULL) && (name == %@)", match: name});
@@ -1507,39 +1724,249 @@ SM.extend({
     }
 });
 
-// lite.js
+// marks.js
 SM.extend({
-    lite: function( type ){
-        if( this.selection.count() <= 0 ){
+    markOverlays: function(){
+        var self = this,
+            selection = this.selection;
+
+        if( selection.count() <= 0 ){
             this.message(_("Select a layer to make marks!"));
             return false;
         }
-        var target = this.selection[0],
-            objectID = target.objectID(),
-            liteStyle = {
-                layer: this.sharedLayerStyle("@Lite / Layer", this.colors.lite.layer),
-                text: this.sharedTextStyle("@Lite / Text", this.colors.lite.text, 2)
+        for (var i = 0; i < selection.count(); i++) {
+            this.overlay(selection[i]);
+        }
+    },
+    markSizes: function(){
+        var self = this,
+            selection = this.selection;
+
+
+        if( selection.count() <= 0 ){
+            this.message(_("Select a layer to make marks!"));
+            return false;
+        }
+
+        if(this.sizesPanel()){
+            var sizeStyles = {
+                    layer: this.sharedLayerStyle("@Size / Layer", this.colors.size.layer),
+                    text: this.sharedTextStyle("@Size / Text", this.colors.size.text, 2)
+                };
+
+            for (var i = 0; i < selection.count(); i++) {
+                var target = selection[i],
+                    objectID = target.objectID();
+
+                if(this.configs.sizes.widthPlacement){
+                    this.sizes({
+                        name: "WIDTH#" + objectID,
+                        type: "width",
+                        target: target,
+                        placement: this.configs.sizes.widthPlacement,
+                        styles: sizeStyles,
+                        byPercentage: this.configs.sizes.byPercentage
+                    });
+                }
+
+                if(this.configs.sizes.heightPlacement){
+                    this.sizes({
+                        name: "HEIGHT#" + objectID,
+                        type: "height",
+                        target: target,
+                        placement: this.configs.sizes.heightPlacement,
+                        styles: sizeStyles,
+                        byPercentage: this.configs.sizes.byPercentage
+                    });
+                }
+            }
+        }
+    },
+    markSpacings: function(){
+        var self = this,
+            selection = this.selection;
+
+        if( !(selection.count() > 0 && selection.count() < 3) ){
+            this.message(_("Select 1 or 2 layers to make marks!"));
+            return false;
+        }
+
+        if(this.spacingsPanel()){
+            var target = (selection.count() == 1)? selection[0]: selection[1],
+                layer = (selection.count() == 1)? this.current: selection[0],
+                placements = ["top", "right", "bottom", "left"],
+                spacingStyles = {
+                        layer: this.sharedLayerStyle("@Spacing / Layer", this.colors.spacing.layer),
+                        text: this.sharedTextStyle("@Spacing / Text", this.colors.spacing.text, 2)
+                    };
+
+            if( this.isIntersect(this.getRect(target), this.getRect(layer)) ){
+                placements = this.configs.spacings.placements;
+            }
+
+            placements.forEach(function(placement) {
+                self.spacings({
+                    target: target,
+                    layer: layer,
+                    placement: placement,
+                    styles: spacingStyles,
+                    byPercentage: self.configs.spacings.byPercentage
+                });
+            });
+        }
+    },
+    markProperties: function(){
+        var self = this,
+            selection = this.selection;
+
+        if( selection.count() <= 0 ){
+            this.message(_("Select a layer to make marks!"));
+            return false;
+        }
+
+        var target = selection[0];
+
+        if(!this.propertiesPanel()) return false;
+
+        for (var i = 0; i < selection.count(); i++) {
+            var target = selection[i];
+            this.properties({
+                target: target,
+                placement: this.configs.properties.placement,
+                properties: this.configs.properties.properties
+            });
+        }
+    },
+    liteSizes: function(){
+        var self = this,
+            selection = this.selection;
+
+        if( selection.count() <= 0 ){
+            this.message(_("Select a layer to make marks!"));
+            return false;
+        }
+
+        var sizeStyles = {
+                layer: this.sharedLayerStyle("@Size / Layer", this.colors.size.layer),
+                text: this.sharedTextStyle("@Size / Text", this.colors.size.text, 2)
             };
 
-        if(type == "width"){
-            this.sizes({
-                name: "LITE#" + objectID,
-                type: "width",
-                target: target,
-                placement: "middle",
-                styles: liteStyle
-            });
-            this.removeLayer(target);
+            for (var i = 0; i < selection.count(); i++) {
+                var target = selection[i],
+                    targetRect = self.getRect(target),
+                    objectID = target.objectID(),
+                    distance = self.getDistance(targetRect),
+                    widthPlacement =
+                        distance.top < distance.bottom? "bottom":
+                        distance.top == distance.bottom? "middle":
+                        "top",
+                    heightPlacement =
+                        distance.left > distance.right? "left":
+                        distance.left == distance.right? "center":
+                        "right";
+
+                    this.sizes({
+                        name: "WIDTH#" + objectID,
+                        type: "width",
+                        target: target,
+                        placement: widthPlacement,
+                        styles: sizeStyles,
+                        byPercentage: false
+                    });
+
+                    this.sizes({
+                        name: "HEIGHT#" + objectID,
+                        type: "height",
+                        target: target,
+                        placement: heightPlacement,
+                        styles: sizeStyles,
+                        byPercentage: false
+                    });
+
+            }
+    },
+    liteSpacings: function(){
+        var self = this,
+            selection = this.selection;
+
+        if( !(selection.count() > 0 && selection.count() < 3) ){
+            this.message(_("Select 1 or 2 layers to make marks!"));
+            return false;
         }
-        else if(type == "height"){
-            this.sizes({
-                name: "LITE#" + objectID,
-                type: "height",
-                target: target,
-                placement: "center",
-                styles: liteStyle
+
+        var target = (selection.count() == 1)? selection[0]: selection[1],
+            layer = (selection.count() == 1)? this.current: selection[0],
+            spacingStyles = {
+                    layer: this.sharedLayerStyle("@Spacing / Layer", this.colors.spacing.layer),
+                    text: this.sharedTextStyle("@Spacing / Text", this.colors.spacing.text, 2)
+                },
+            placements = ["top", "right", "bottom", "left"];
+
+            placements.forEach(function(placement) {
+                self.spacings({
+                    target: target,
+                    layer: layer,
+                    placement: placement,
+                    styles: spacingStyles,
+                    byPercentage: false
+                });
             });
-            this.removeLayer(target);
+    },
+    liteProperties: function(){
+        var self = this,
+            selection = this.selection;
+
+        if( selection.count() <= 0 ){
+            this.message(_("Select a layer to make marks!"));
+            return false;
+        }
+
+        var target = selection[0];
+
+        if( /PROPERTY\#/.exec(target.parentGroup().name()) ){
+            this.resizeProperties(target.parentGroup());
+        }
+        else{
+            for (var i = 0; i < selection.count(); i++) {
+                var target = selection[i],
+                    targetRect = this.getRect(target),
+                    distance = this.getDistance(targetRect),
+                    placement = {};
+
+                placement[distance.right] = "right";
+                placement[distance.bottom] = "bottom";
+                placement[distance.left] = "left";
+                placement[distance.top] = "top";
+
+                this.properties({
+                    target: target,
+                    placement: placement[ Math.max(distance.top, distance.right, distance.bottom, distance.left) ],
+                    properties: ["layer-name", "color", "border", "opacity", "radius", "shadow", "font-size", "font-face", "character", "line-height", "paragrapht"]
+                });
+            }
+        }
+    },
+    markNote: function(){
+        var self = this,
+            selection = this.selection;
+
+        if( selection.count() <= 0 ){
+            this.message(_("Select a text layer to make marks!"));
+            return false;
+        }
+
+        var target = selection[0];
+
+        if( /NOTE\#/.exec(target.parentGroup().name()) && this.is(target, MSTextLayer) ){
+            this.resizeNote(target.parentGroup());
+        }
+        else{
+            for (var i = 0; i < selection.count(); i++) {
+                var target = selection[i];
+                if(this.is(target, MSTextLayer)){
+                    this.note(target);
+                }
+            }
         }
     },
     note: function(target){
@@ -1562,7 +1989,7 @@ SM.extend({
         note.setName("note-box");
         note.layers().firstObject().setCornerRadiusFromComponents("2")
 
-        text.setStringValue(target.storage().string());
+        text.setStringValue(target.stringValue());
         text.setTextBehaviour(1);
         text.setTextBehaviour(0);
         note.setStyle(noteStyle.layer);
@@ -1698,7 +2125,6 @@ SM.extend({
     getSelectionColor: function(){
         var self = this,
             colors = [];
-
         for (var i = 0; i < this.selection.count(); i++) {
             var layer = this.selection[i];
             if ( !this.is(layer, MSSliceLayer) ) {
@@ -1709,12 +2135,12 @@ SM.extend({
                 for (var n = 0; n < fills.length; n++) {
                     var fill = fills[n];
                     if(fill.fillType != "gradient"){
-                        colors.push(fill.color);
+                        colors.push({name: '', color: fill.color});
                     }
                     else{
                         for (var w = 0; w < fill.gradient.colorStops.length; w++) {
                             var gColor = fill.gradient.colorStops[w];
-                            colors.push(gColor.color);
+                            colors.push({name: '', color: gColor.color});
                         }
                     }
                 }
@@ -1722,20 +2148,19 @@ SM.extend({
                 for (var n = 0; n < borders.length; n++) {
                     var border = borders[n];
                     if(border.fillType != "gradient"){
-                        colors.push(border.color);
+                        colors.push({name: '', color: border.color});
                     }
                     else{
                         for (var w = 0; w < border.gradient.colorStops.length; w++) {
                             var gColor = border.gradient.colorStops[w];
-                            colors.push(gColor.color);
+                            colors.push({name: '', color: gColor.color});
                         }
                     }
                 }
             }
 
             if ( this.is(layer, MSTextLayer) ) {
-                colors.push(this.colorToJSON(layer.textColor()));
-
+                colors.push({name: '', color: this.colorToJSON(layer.textColor())});
             }
         };
 
@@ -1752,45 +2177,50 @@ SM.extend({
     },
     manageColors: function(){
         var self = this,
-            data = {};
-
-        data.list = (this.configs.colors)? this.configs.colors: [];
-
-        data.add = this.getSelectionColor();
+            data = (this.configs.colors)? this.configs.colors: [];
 
         return this.SMPanel({
             url: this.pluginSketch + "/panel/colors.html",
-            width: 240,
-            height: 323,
-            state: 0,
+            width: 320,
+            height: 451,
             data: data,
+            floatWindow: true,
+            identifier: "com.utom.measure.colors",
             callback: function( data ){
                 var colors = data;
                 self.configs = self.setConfigs({
                     colors: colors,
                     colorNames: self.colorNames(colors)
                 });
-                
+
             },
-            importCallback: function(SMPanel, NSApp){
-                var colors = self.importColors();
-                if( colors ){
-                    self.configs = self.setConfigs({
-                        colors: colors,
-                        colorNames: self.colorNames(colors)
-                    });
-                    SMPanel.orderOut(nil);
-                    NSApp.stopModal();
-                    self.manageColors();
+            addCallback: function(windowObject){
+                self.updateContext();
+                self.init(self.context);
+                var data = self.getSelectionColor();
+                if(data.length > 0){
+                    windowObject.evaluateWebScript("addColors(" + JSON.stringify(data) + ");");
+                }
+            },
+            importCallback: function(windowObject){
+                var data = self.importColors();
+                if(data.length > 0){
+                    windowObject.evaluateWebScript("addColors(" + JSON.stringify(data) + ");");
                     return true;
                 }
                 else{
                     return false;
                 }
+            },
+            exportCallback: function(windowObject){
+                return self.exportColors();
+            },
+            exportXMLCallback: function(windowObject){
+                return self.exportColorsXML();
             }
         });
     },
-    importColors: function(SMPanel){
+    importColors: function(){
         var openPanel = NSOpenPanel.openPanel();
         openPanel.setCanChooseDirectories(false);
         openPanel.setCanCreateDirectories(false);
@@ -1802,11 +2232,11 @@ SM.extend({
         if (openPanel.runModal() != NSOKButton) {
             return false;
         }
-        var colors = JSON.parse(NSString.stringWithContentsOfFile_encoding_error(openPanel.URL().path(), NSUTF8StringEncoding, nil)),
+        var colors = JSON.parse(NSString.stringWithContentsOfFile_encoding_error(openPanel.URL().path(), 4, nil)),
             colorsData = [];
 
         colors.forEach(function(color){
-            if(color.name && ( color.color && color.color.a && color.color.r && color.color.g && color.color.b && color.color["argb-hex"] && color.color["color-hex"] && color.color["css-rgba"] && color.color["ui-color"]) ){
+            if( color.color && color.color.a && color.color.r && color.color.g && color.color.b && color.color["argb-hex"] && color.color["color-hex"] && color.color["css-rgba"] && color.color["ui-color"] ){
                 colorsData.push(color);
             }
         });
@@ -1816,65 +2246,144 @@ SM.extend({
         }
         return colorsData;
 
+    },
+    exportColors: function(){
+        var filePath = this.document.fileURL()? this.document.fileURL().path().stringByDeletingLastPathComponent(): "~";
+        var fileName = this.document.displayName().stringByDeletingPathExtension();
+        var savePanel = NSSavePanel.savePanel();
+
+        savePanel.setTitle(_("Export colors"));
+        savePanel.setNameFieldLabel(_("Export to:"));
+        savePanel.setPrompt(_("Export"));
+        savePanel.setCanCreateDirectories(true);
+        savePanel.setShowsTagField(false);
+        savePanel.setAllowedFileTypes(NSArray.arrayWithObject("json"));
+        savePanel.setAllowsOtherFileTypes(false);
+        savePanel.setNameFieldStringValue(fileName + "-colors.json");
+
+        if (savePanel.runModal() != NSOKButton) {
+            return false;
+        }
+        var savePath = savePanel.URL().path().stringByDeletingLastPathComponent(),
+            fileName = savePanel.URL().path().lastPathComponent();
+
+        this.writeFile({
+            content: JSON.stringify(this.configs.colors),
+            path: savePath,
+            fileName: fileName
+        });
+
+        return true;
+    },
+    exportColorsXML: function(){
+        var filePath = this.document.fileURL()? this.document.fileURL().path().stringByDeletingLastPathComponent(): "~";
+        var fileName = this.document.displayName().stringByDeletingPathExtension();
+        var savePanel = NSSavePanel.savePanel();
+
+        savePanel.setTitle(_("Export colors"));
+        savePanel.setNameFieldLabel(_("Export to:"));
+        savePanel.setPrompt(_("Export"));
+        savePanel.setCanCreateDirectories(true);
+        savePanel.setShowsTagField(false);
+        savePanel.setAllowedFileTypes(NSArray.arrayWithObject("xml"));
+        savePanel.setAllowsOtherFileTypes(false);
+        savePanel.setNameFieldStringValue(fileName + "-colors.xml");
+
+        if (savePanel.runModal() != NSOKButton) {
+            return false;
+        }
+        var savePath = savePanel.URL().path().stringByDeletingLastPathComponent(),
+            fileName = savePanel.URL().path().lastPathComponent(),
+            XMLContent = [];
+
+        XMLContent.push("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+        XMLContent.push("<resources>");
+        this.configs.colors.forEach(function(color){
+            if(color.name){
+                XMLContent.push("\t<color name=\"" + color.name + "\">" + color.color["argb-hex"] + "</color>");
+            }
+        });
+        XMLContent.push("</resources>");
+
+        this.writeFile({
+            content: XMLContent.join("\r\n"),
+            path: savePath,
+            fileName: fileName
+        });
+
+        return true;
     }
 })
 
 // exportable.js
 SM.extend({
-    makeExportable: function(){
+    makeExportable: function(optionKey){
         if( this.selection.count() <= 0 ){
             this.message(_("Select a layer to add exportable!"));
             return false;
         }
 
-
         for (var i = 0; i < this.selection.count(); i++) {
-            var layer = this.selection[i];
-            layer.exportOptions().removeAllExportFormats();
+            var layer = this.selection[i],
+                slice = layer;
 
-            var formats = [
-                {
-                    scale: 1 / this.configs.scale,
-                    suffix: ""
-                },
-                {
-                    scale: 1.5 / this.configs.scale,
-                    suffix: "@1.5x"
-                },
-                {
-                    scale: 2 / this.configs.scale,
-                    suffix: "@2x"
-                },
-                {
-                    scale: 3 / this.configs.scale,
-                    suffix: "@3x"
+            if(optionKey && !this.is(layer, MSSliceLayer)){
+                slice = MSSliceLayer.sliceLayerFromLayer(layer);
+
+                var layerRect = this.getRect(layer),
+                    sliceRect = this.getRect(slice);
+
+                if(layerRect.width > sliceRect.width){
+                    sliceRect.setX(layerRect.x);
+                    sliceRect.setWidth(layerRect.width);
                 }
-            ];
 
-            for(format of formats) {
-                var size = layer.exportOptions().addExportFormat();
-                size.setName(format.suffix);
-                size.setScale(format.scale);
-            };
+                if(layerRect.height > sliceRect.height){
+                    sliceRect.setY(layerRect.y);
+                    sliceRect.setHeight(layerRect.height);
+                }
 
-            layer.exportOptions().addExportFormat();
-            layer.exportOptions().removeExportFormatAtIndex(layer.exportOptions().exportFormats().count() - 1);
-            layer.setIsSelected(0);
-            layer.setIsSelected(1);
+                if(this.is(layer, MSLayerGroup)){
+                    var sliceCopy = slice.copy();
+                    layer.addLayers([sliceCopy]);
+
+                    var sliceCopyRect = this.getRect(sliceCopy);
+                    sliceCopyRect.setX(sliceRect.x);
+                    sliceCopyRect.setY(sliceRect.y);
+                    this.removeLayer(slice);
+                    slice = sliceCopy;
+                    slice.exportOptions().setLayerOptions(2);
+                }
+            }
+
+            slice.exportOptions().removeAllExportFormats();
+
+            var size = slice.exportOptions().addExportFormat();
+                size.setName("");
+                size.setScale(1);
+
+            if(!optionKey || this.is(layer, MSSliceLayer)){
+                layer.setIsSelected(0);
+                layer.setIsSelected(1);
+            }
+            else if(sliceCopy){
+                slice.setIsSelected(1);
+            }
 
         };
 
-        
+
     }
 });
 
 // export.js
 SM.extend({
-    slices: [],
-    sliceCache: {},
-    maskCache: [],
     hasExportSizes: function(layer){
         return layer.exportOptions().exportFormats().count() > 0;
+    },
+    hasEmoji: function(layer) {
+      var fonts = layer.attributedString().fontNames().allObjects();
+      return !!/AppleColorEmoji/.exec(fonts);
     },
     isSliceGroup: function(layer) {
         return this.is(layer, MSLayerGroup) && this.hasExportSizes(layer);
@@ -1940,7 +2449,7 @@ SM.extend({
             isEmpty: isEmpty
         }
     },
-    checkMask: function(group, layer, layerData, layerStates){
+    getMask: function(group, layer, layerData, layerStates){
         if(layer.hasClippingMask()){
             if(layerStates.isMaskChildLayer){
                 this.maskCache.push({
@@ -1993,67 +2502,51 @@ SM.extend({
         var self = this,
             exportable = [],
             size, sizes = layer.exportOptions().exportFormats(),
-            sizesInter = sizes.objectEnumerator();
+            fileFormat = this.toJSString(sizes[0].fileFormat()),
+            matchFormat = /png|jpg|tiff|webp/.exec(fileFormat);
+        var formats =
+            (self.configs.unit == "dp/sp" && matchFormat)? [
+              { scale: 1 / self.configs.scale, drawable: "drawable-mdpi/" },
+              { scale: 1.5 / self.configs.scale, drawable: "drawable-hdpi/" },
+              { scale: 2 / self.configs.scale, drawable: "drawable-xhdpi/" },
+              { scale: 3 / self.configs.scale, drawable: "drawable-xxhdpi/" },
+              { scale: 4 / self.configs.scale, drawable: "drawable-xxxhdpi/"}
+            ]:
+            (this.configs.unit == "pt" && matchFormat)? [
+              { scale: 1 / self.configs.scale, suffix: "" },
+              { scale: 2 / self.configs.scale, suffix: "@2x" },
+              { scale: 3 / self.configs.scale, suffix: "@3x" }
+            ]:
+            [
+              { scale: 1, drawablePath: "", suffix: "" }
+            ];
 
-        var androidDensity = {
-            "@0.75x": "ldpi",
-            "@1x": "mdpi",
-            "@1.5x": "hdpi",
-            "@2x": "xhdpi",
-            "@3x": "xxhdpi",
-            "@4x": "xxxhdpi"
-        }
+        for(format of formats) {
+          var drawable = format.drawable || "",
+              suffix = format.suffix || "";
+          self.exportImage({
+                  layer: layer,
+                  path: self.assetsPath,
+                  scale: format.scale,
+                  name: drawable + layer.name(),
+                  suffix: suffix,
+                  format: fileFormat
+              });
 
-        while (size = sizesInter.nextObject()) {
-
-            var size = this.toJSString(size).split(" "),
-                scale = self.toJSNumber(size[0]),
-                format = size[2],
-                suffix = this.toJSString(size[1]),
-                suffix = suffix || "",
-                density = suffix,
-                drawablePath = "";
-
-            if( sizes.count() == 1 && self.configs.scale != 1 && !density ){
-                suffix = "@" + self.configs.scale + "x";
-                density = suffix;
-            }
-
-            if( ( ( sizes.count() == 1 && scale == 1 && self.configs.scale == 1 ) && !density ) || ( sizes.count() > 1 && !density ) ){
-                density = "@1x";
-            }
-
-            // Android
-            if(self.configs.unit == "dp/sp"){
-                drawablePath = "drawable-" + androidDensity[density] + "/";
-                density = androidDensity[density];
-                suffix = "";
-            }
-
-            this.exportImage({
-                    layer: layer,
-                    path: self.assetsPath,
-                    scale: scale,
-                    name: drawablePath + layer.name(),
-                    suffix: suffix,
-                    format: format
-                });
-
-            exportable.push({
-                    name: self.toJSString(layer.name()),
-                    density: density,
-                    format: format,
-                    path: drawablePath + layer.name() + suffix + "." + format
-                });
+          exportable.push({
+                  name: self.toJSString(layer.name()),
+                  format: fileFormat,
+                  path: drawable + layer.name() + suffix + ".png"
+              });
         }
 
         return exportable;
     },
-    checkSlice: function(layer, layerData, symbolLayer){
+    getSlice: function(layer, layerData, symbolLayer){
         var objectID = ( layerData.type == "symbol" )? this.toJSString(layer.symbolMaster().objectID()):
                         ( symbolLayer )? this.toJSString(symbolLayer.objectID()):
                         layerData.objectID;
-        if( 
+        if(
             (
                 layerData.type == "slice" ||
                 (
@@ -2085,7 +2578,7 @@ SM.extend({
             layerData.exportable = this.sliceCache[objectID];
         }
     },
-    checkSymbol: function(artboard, layer, layerData, data){
+    getSymbol: function(artboard, layer, layerData, data){
         if( layerData.type == "symbol" ){
             var self = this,
                 symbolObjectID = this.toJSString(layer.symbolMaster().objectID());
@@ -2096,39 +2589,147 @@ SM.extend({
                 var symbolRect = this.getRect(layer),
                     symbolChildren = layer.symbolMaster().children(),
                     tempSymbol = layer.duplicate(),
-                    tempGroup = tempSymbol.detachByReplacingWithGroup(),
-                    tempGroupRect = this.getRect(tempGroup),
-                    tempSymbolLayers = tempGroup.children().objectEnumerator(),
+                    tempGroup = tempSymbol.detachByReplacingWithGroup();
+
+                tempGroup.resizeToFitChildrenWithOption(0)
+
+                var tempSymbolLayers = tempGroup.children().objectEnumerator(),
+                    overrides = layer.overrides(),
                     idx = 0;
 
-                var tempArtboard = this.addShape();
-                tempGroup.addLayers([tempArtboard]);
-                var tempArtboardRect = this.getRect(tempArtboard),
-                    symbolMasterFrame = layer.symbolMaster().frame();
-
-                tempArtboardRect.setX(symbolRect.x);
-                tempArtboardRect.setY(symbolRect.y);
-                tempArtboardRect.setWidth(symbolMasterFrame.width());
-                tempArtboardRect.setHeight(symbolMasterFrame.height());
-
-                tempGroup.resizeToFitChildrenWithOption(0);
-                tempGroupRect.setX(symbolRect.x);
-                tempGroupRect.setY(symbolRect.y);
-                tempGroupRect.setWidth(symbolRect.width);
-                tempGroupRect.setHeight(symbolRect.height);
-                this.removeLayer(tempArtboard);
+                overrides = (overrides)? overrides.objectForKey(0): undefined;
 
                 while(tempSymbolLayer = tempSymbolLayers.nextObject()){
-                    self.getLayer(
-                        artboard,
-                        tempSymbolLayer,
-                        data,
-                        symbolChildren[idx]
-                    );
+                    if( self.is(tempSymbolLayer, MSSymbolInstance) ){
+                        var symbolMasterObjectID = self.toJSString(symbolChildren[idx].objectID());
+                        if(
+                          overrides &&
+                          overrides[symbolMasterObjectID] &&
+                          !!overrides[symbolMasterObjectID].symbolID
+                        ){
+                          var changeSymbol = self.find({key: "(symbolID != NULL) && (symbolID == %@)", match: self.toJSString(overrides[symbolMasterObjectID].symbolID)}, self.document.documentData().allSymbols());
+                          if(changeSymbol){
+                            tempSymbolLayer.changeInstanceToSymbol(changeSymbol);
+                          }
+                          else{
+                            tempSymbolLayer = undefined;
+                          }
+                        }
+                    }
+                    if(tempSymbolLayer){
+                      self.getLayer(
+                          artboard,
+                          tempSymbolLayer,
+                          data,
+                          symbolChildren[idx]
+                      );
+                    }
                     idx++
                 }
                 this.removeLayer(tempGroup);
             }
+        }
+    },
+    getTextAttrs: function(str){
+        var data = {},
+            regExpAttr = new RegExp('([a-z\-]+)\=\"([^\"]+)\"', 'g'),
+            regExpAttr1 = new RegExp('([a-z\-]+)\=\"([^\"]+)\"'),
+            attrs = str.match(regExpAttr);
+        for (var a = 0; a < attrs.length; a++) {
+            var attrData = regExpAttr1.exec(attrs[a]),
+                key = attrData[1],
+                value = attrData[2];
+
+            data[key] = value;
+        }
+        return data;
+    },
+    getText: function(artboard, layer, layerData, data){
+
+        if(layerData.type == "text" && layer.attributedString().treeAsDictionary().value.attributes.length > 1){
+            if(this.hasEmoji(layer)){
+                return false;
+            }
+            var self = this,
+                svgExporter = SketchSVGExporter.new().exportLayers([layer.immutableModelObject()]),
+                svgStrong = this.toJSString(NSString.alloc().initWithData_encoding(svgExporter, 4)),
+                regExpTspan = new RegExp('<tspan([^>]+)>([^<]*)</tspan>', 'g'),
+                regExpContent = new RegExp('>([^<]*)<'),
+                offsetX, offsetY, textData = [],
+                layerRect = this.getRect(layer),
+                svgSpans = svgStrong.match(regExpTspan);
+
+            for (var a = 0; a < svgSpans.length; a++) {
+                var attrsData = this.getTextAttrs(svgSpans[a]);
+                attrsData.content = svgSpans[a].match(regExpContent)[1];
+                offsetX = (
+                        !offsetX ||
+                        ( offsetX && offsetX > this.toJSNumber(attrsData.x) )
+                    )?
+                    this.toJSNumber(attrsData.x): offsetX;
+
+                offsetY = (
+                        !offsetY ||
+                        ( offsetY && offsetY > this.toJSNumber(attrsData.y) )
+                    )?
+                    this.toJSNumber(attrsData.y): offsetY;
+
+                textData.push(attrsData);
+            }
+
+            var parentGroup = layer.parentGroup(),
+                parentRect = self.getRect(parentGroup),
+                colorHex = layerData.color["color-hex"].split(" ")[0];
+
+            textData.forEach(function(tData){
+
+                if(
+                    tData["content"].trim() &&
+                    (
+                        colorHex != tData.fill ||
+                        Object.getOwnPropertyNames(tData).length > 4
+                    )
+                ){
+                    var textLayer = self.addText(),
+                        colorRGB = self.hexToRgb(tData.fill || colorHex),
+                        color = MSColor.colorWithRed_green_blue_alpha(colorRGB.r / 255, colorRGB.g / 255, colorRGB.b / 255, (tData["fill-opacity"] || 1) );
+
+                    textLayer.setName(tData.content);
+                    textLayer.setStringValue(tData.content);
+                    textLayer.setTextColor(color);
+                    textLayer.setFontSize(tData["font-size"] || layerData.fontSize);
+
+                    var defaultLineHeight = layer.font().defaultLineHeightForFont();
+
+                    textLayer.setLineHeight(layer.lineHeight() || defaultLineHeight);
+
+                    textLayer.setCharacterSpacing(self.toJSNumber(tData["letter-spacing"]) || layer.characterSpacing());
+                    textLayer.setTextAlignment(layer.textAlignment())
+
+                    if(tData["font-family"]){
+                        textLayer.setFontPostscriptName(tData["font-family"].split(",")[0]);
+                    }
+                    else{
+                        textLayer.setFontPostscriptName(layer.fontPostscriptName());
+                    }
+
+                    parentGroup.addLayers([textLayer]);
+
+                    var textLayerRect = self.getRect(textLayer);
+
+                    textLayerRect.setX(layerRect.x + (self.toJSNumber(tData.x) - offsetX));
+                    textLayerRect.setY(layerRect.y + (self.toJSNumber(tData.y) - offsetY));
+
+                    self.getLayer(
+                        artboard,
+                        textLayer,
+                        data
+                    );
+
+                    self.removeLayer(textLayer);
+                }
+
+            });
         }
     },
     getSavePath: function(){
@@ -2162,6 +2763,9 @@ SM.extend({
             data.exportOption = true;
         }
 
+        self.configs.order = (self.configs.order)? self.configs.order: "positive";
+        data.order = self.configs.order;
+
         if(this.selection.count() > 0){
             var selectionArtboards = this.find({key: "(class != NULL) && (class == %@)", match: MSArtboardGroup}, this.selection, true);
             if(selectionArtboards.count() > 0){
@@ -2182,36 +2786,62 @@ SM.extend({
             pageData.artboards = [];
 
             while(artboard = artboards.nextObject()){
-                if(!this.is(artboard, MSSymbolMaster)){
+                // if(!this.is(artboard, MSSymbolMaster)){
                     var artboardData = {};
                     artboardData.name = this.toJSString(artboard.name());
                     artboardData.objectID = this.toJSString(artboard.objectID());
+                    artboardData.MSArtboardGroup = artboard;
                     pageData.artboards.push(artboardData);
-                    self.artboardsData.push(artboard);
-                }
+                // }
             }
+            pageData.artboards.reverse()
             data.pages.push(pageData);
         }
+
+        self.allData = data;
+
         return this.SMPanel({
             url: this.pluginSketch + "/panel/export.html",
             width: 320,
             height: 567,
             data: data,
             callback: function( data ){
+                var allData = self.allData;
                 self.selectionArtboards = [];
                 self.allCount = 0;
-                for (var i = 0; i < self.artboardsData.length; i++) {
-                    var artboard = self.artboardsData[i],
-                        objectID = self.toJSString( artboard.objectID() );
 
-                    if(data[objectID]){
-                        self.allCount += artboard.children().count();
-                        self.selectionArtboards.push(artboard);
+                for (var p = 0; p < allData.pages.length; p++) {
+                    var artboards = allData.pages[p].artboards;
+                    if(data.order == 'reverse'){
+                        artboards = artboards.reverse();
+                    }
+                    else if(data.order == 'alphabet'){
+                        artboards = artboards.sort(function(a, b) {
+                            var nameA = a.name.toUpperCase(),
+                                nameB = b.name.toUpperCase();
+                            if (nameA < nameB) {
+                                return -1;
+                            }
+                            if (nameA > nameB) {
+                                return 1;
+                            }
+                            return 0;
+                        });
+                    }
+
+                    for (var a = 0; a < artboards.length; a++) {
+                        var artboard = artboards[a].MSArtboardGroup,
+                            objectID = self.toJSString( artboard.objectID() );
+                        if(data[objectID]){
+                            self.allCount += artboard.children().count();
+                            self.selectionArtboards.push(artboard);
+                        }
                     }
                 }
 
                 self.configs = self.setConfigs({
-                    exportOption: data.exportOption
+                    exportOption: data.exportOption,
+                    order: data.order
                 });
             }
         });
@@ -2233,7 +2863,7 @@ SM.extend({
                         floatWindow: true
                     }),
                     processing = processingPanel.windowScriptObject(),
-                    template = NSString.stringWithContentsOfFile_encoding_error(this.pluginSketch + "/template.html", NSUTF8StringEncoding, nil);
+                    template = NSString.stringWithContentsOfFile_encoding_error(this.pluginSketch + "/template.html", 4, nil);
 
                 this.savePath = savePath;
                 var idx = 1,
@@ -2249,10 +2879,11 @@ SM.extend({
                         colors: []
                     };
 
-                self.single = false;
+                self.slices = [];
+                self.sliceCache = {};
+                self.maskCache = [];
                 self.wantsStop = false;
 
-                coscript.shouldKeepAround = true
                 coscript.scheduleWithRepeatingInterval_jsFunction( 0, function( interval ){
                     // self.message('Processing layer ' + idx + ' of ' + self.allCount);
                     processing.evaluateWebScript("processing('"  + Math.round( idx / self.allCount * 100 ) +  "%', '" + _("Processing layer %@ of %@", [idx, self.allCount]) + "')");
@@ -2264,7 +2895,7 @@ SM.extend({
                         self.maskObjectID = undefined;
                         self.maskRect = undefined;
                     }
-                    
+
                     if(!exporting) {
                         exporting = true;
                         var artboard = self.selectionArtboards[artboardIndex],
@@ -2272,30 +2903,33 @@ SM.extend({
                             layer = artboard.children()[layerIndex];
 
                         // log( page.name() + ' - ' + artboard.name() + ' - ' + layer.name());
-                        self.getLayer(
-                            artboard, // Sketch artboard element
-                            layer, // Sketch layer element
-                            data.artboards[artboardIndex] // Save to data
-                        );
-                        
+                        try {
+                          self.getLayer(
+                              artboard, // Sketch artboard element
+                              layer, // Sketch layer element
+                              data.artboards[artboardIndex] // Save to data
+                          );
+                          layerIndex++;
+                          exporting = false;
+                        } catch (e) {
+                          self.wantsStop = true;
+                          processing.evaluateWebScript("$('#processing-text').html('<strong>Error:</strong> <small>" + self.toHTMLEncode(e.message) + "</small>');");
+                        }
 
-                        layerIndex++;
-                        exporting = false;
-
-                        if( self.is(layer, MSArtboardGroup) ){
+                        if( self.is(layer, MSArtboardGroup) || self.is(layer, MSSymbolMaster)){
                             var objectID = artboard.objectID(),
                                 artboardRect = self.getRect(artboard),
                                 page = artboard.parentGroup(),
                                 // name = self.toSlug(self.toHTMLEncode(page.name()) + ' ' + self.toHTMLEncode(artboard.name()));
-                                name = self.toSlug(page.name() + ' ' + artboard.name());
+                                slug = self.toSlug(page.name() + ' ' + artboard.name());
 
-                            data.artboards[artboardIndex].pageName = self.toHTMLEncode(page.name());
+                            data.artboards[artboardIndex].pageName = self.toHTMLEncode(self.emojiToEntities(page.name()));
                             data.artboards[artboardIndex].pageObjectID = self.toJSString(page.objectID());
-                            data.artboards[artboardIndex].name = self.toHTMLEncode(artboard.name());
+                            data.artboards[artboardIndex].name = self.toHTMLEncode(self.emojiToEntities(artboard.name()));
+                            data.artboards[artboardIndex].slug = slug;
                             data.artboards[artboardIndex].objectID = self.toJSString(artboard.objectID());
                             data.artboards[artboardIndex].width = artboardRect.width;
                             data.artboards[artboardIndex].height = artboardRect.height;
-                            
 
                             if(!self.configs.exportOption){
                                 var imageURL = NSURL.fileURLWithPath(self.exportImage({
@@ -2306,33 +2940,34 @@ SM.extend({
                                     imageData = NSData.dataWithContentsOfURL(imageURL),
                                     imageBase64 = imageData.base64EncodedStringWithOptions(0);
                                 data.artboards[artboardIndex].imageBase64 = 'data:image/png;base64,' + imageBase64;
+
                                 var newData =  JSON.parse(JSON.stringify(data));
                                 newData.artboards = [data.artboards[artboardIndex]];
                                 self.writeFile({
-                                        content: self.template(template, {lang: language, data: JSON.stringify(newData).replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029')}),
+                                        content: self.template(template, {lang: language, data: JSON.stringify(newData)}),
                                         path: self.toJSString(savePath),
-                                        fileName: name + ".html"
+                                        fileName: slug + ".html"
                                     });
                             }
                             else{
                                 // data.artboards[artboardIndex].imagePath = "preview/" + objectID + ".png";
-                                data.artboards[artboardIndex].imagePath = "preview/" + encodeURI(name) + ".png";
+                                data.artboards[artboardIndex].imagePath = "preview/" + encodeURI(slug) + ".png";
 
                                 self.exportImage({
                                         layer: artboard,
                                         path: self.toJSString(savePath) + "/preview",
                                         scale: 2,
                                         // name: objectID,
-                                        name: name
+                                        name: slug
                                     });
 
                                 self.writeFile({
                                         content: "<meta http-equiv=\"refresh\" content=\"0;url=../index.html#artboard" + artboardIndex + "\">",
                                         path: self.toJSString(savePath) + "/links",
-                                        fileName: name + ".html"
+                                        fileName: slug + ".html"
                                     });
                             }
-                            
+
 
                             layerIndex = 0;
                             artboardIndex++;
@@ -2345,17 +2980,12 @@ SM.extend({
 
                             if(self.configs.colors && self.configs.colors.length > 0){
                                 data.colors = self.configs.colors;
-                                self.writeFile({
-                                        content: JSON.stringify(self.configs.colors),
-                                        path: self.toJSString(savePath),
-                                        fileName: "colors.json"
-                                    });
                             }
 
                             var selectingPath = savePath;
                             if(self.configs.exportOption){
                                 self.writeFile({
-                                        content: self.template(template, {lang: language, data: JSON.stringify(data).replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029')}),
+                                        content: self.template(template, {lang: language, data: JSON.stringify(data)}),
                                         path: self.toJSString(savePath),
                                         fileName: "index.html"
                                     });
@@ -2369,7 +2999,6 @@ SM.extend({
                     }
 
                     if( self.wantsStop === true ){
-                        coscript.shouldKeepAround = false;
                         return interval.cancel();
                     }
 
@@ -2398,7 +3027,7 @@ SM.extend({
         );
         savePathName = savePathName.join("");
 
-        content.writeToFile_atomically_encoding_error(savePathName, false, NSUTF8StringEncoding, null);
+        content.writeToFile_atomically_encoding_error(savePathName, false, 4, null);
     },
     exportImage: function(options) {
         var options = this.extend(options, {
@@ -2440,7 +3069,7 @@ SM.extend({
 
             data.notes.push({
                 rect: this.rectToJSON(textLayer.absoluteRect(), artboardRect),
-                note: this.toHTMLEncode(textLayer.stringValue()).replace(/\n/g, "<br>")
+                note: this.toHTMLEncode(this.emojiToEntities(textLayer.stringValue())).replace(/\n/g, "<br>")
             });
 
             layer.setIsVisible(false);
@@ -2460,17 +3089,24 @@ SM.extend({
         var layerType = this.is(layer, MSTextLayer) ? "text" :
                this.is(layer, MSSymbolInstance) ? "symbol" :
                this.is(layer, MSSliceLayer) || this.hasExportSizes(layer)? "slice":
-               "shape",
-            layerData = {
+               "shape";
+
+        if ( symbolLayer && layerType == "text" && layer.textBehaviour() == 0) { // fixed for v40
+            layer.setTextBehaviour(1); // fixed for v40
+            layer.setTextBehaviour(0); // fixed for v40
+        } // fixed for v40
+
+        var layerData = {
                     objectID: this.toJSString( layer.objectID() ),
                     type: layerType,
-                    name: this.toHTMLEncode(layer.name()),
+                    name: this.toHTMLEncode(this.emojiToEntities(layer.name())),
                     rect: this.rectToJSON(layer.absoluteRect(), artboardRect)
                 };
 
-        if(symbolLayer) layerData.objectID = this.toJSString( symbolLayer.objectID() )
+        if(symbolLayer) layerData.objectID = this.toJSString( symbolLayer.objectID() );
 
-        if ( ! ( layerType == "slice" || layerType == "symbol" ) ) {
+
+        if ( layerType != "slice" ) {
             var layerStyle = layer.style();
             layerData.rotation = layer.rotation();
             layerData.radius = this.getRadius(layer);
@@ -2482,13 +3118,13 @@ SM.extend({
         }
 
         if ( layerType == "text" ) {
-            layerData.content = this.toHTMLEncode(layer.stringValue());
+            layerData.content = this.toHTMLEncode(this.emojiToEntities(layer.stringValue()));
             layerData.color = this.colorToJSON(layer.textColor());
             layerData.fontSize = layer.fontSize();
             layerData.fontFace = this.toJSString(layer.fontPostscriptName());
             layerData.textAlign = TextAligns[layer.textAlignment()];
-            layerData.letterSpacing = this.toJSNumber(layer.characterSpacing());
-            layerData.lineHeight = layer.lineHeight();
+            layerData.letterSpacing = this.toJSNumber(layer.characterSpacing()) || 0;
+            layerData.lineHeight = layer.lineHeight() || layer.font().defaultLineHeightForFont();
         }
 
         var layerCSSAttributes = layer.CSSAttributes(),
@@ -2500,10 +3136,11 @@ SM.extend({
         }
         if(css.length > 0) layerData.css = css;
 
-        this.checkMask(group, layer, layerData, layerStates);
-        this.checkSlice(layer, layerData, symbolLayer);
+        this.getMask(group, layer, layerData, layerStates);
+        this.getSlice(layer, layerData, symbolLayer);
         data.layers.push(layerData);
-        this.checkSymbol(artboard, layer, layerData, data);
+        this.getSymbol(artboard, layer, layerData, data);
+        this.getText(artboard, layer, layerData, data);
     },
     template: function(content, data) {
         var content = content.replace(new RegExp("\\<\\!\\-\\-\\s([^\\s\\-\\-\\>]+)\\s\\-\\-\\>", "gi"), function($0, $1) {

@@ -16,7 +16,9 @@
 
 // process images
 - (void)processImages:(NSArray *)images selection:(NSArray *)selection identifier:(NSString *)identifier layerBlock:(void (^)(id layer, NSImage *image))layerBlock;
+- (void)processImages:(NSArray *)images selection:(NSArray *)selection identifier:(NSString *)identifier startIndex:(NSUInteger)startIndex layerBlock:(void (^)(id layer, NSImage *image))layerBlock;
 - (void)processImages:(NSArray *)images selection:(NSArray *)selection identifier:(NSString *)identifier commandIdentifier:(NSString *)commandIdentifier layerBlock:(void (^)(id layer, NSImage *image))layerBlock;
+- (void)processImages:(NSArray *)images selection:(NSArray *)selection identifier:(NSString *)identifier commandIdentifier:(NSString *)commandIdentifier startIndex:(NSUInteger)startIndex layerBlock:(void (^)(id layer, NSImage *image))layerBlock;
 
 // placeholder
 - (void)setPlaceholderImageToLayers:(NSArray *)layers;

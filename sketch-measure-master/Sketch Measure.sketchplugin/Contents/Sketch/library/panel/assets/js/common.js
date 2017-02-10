@@ -15,8 +15,17 @@ $(function() {
 
                 if(keyCode == 13){
                     event.stopPropagation();
-                    $('#submit').click();
+                    $('#submit:not(:disabled)').click();
                     return false;
                 }
             });
 });
+
+function lookupItemInput(x, y){
+    var elem = document.elementFromPoint(x, y);
+    $(elem).click();
+}
+
+window.onfocus = function(){
+    SMAction('focus');
+};

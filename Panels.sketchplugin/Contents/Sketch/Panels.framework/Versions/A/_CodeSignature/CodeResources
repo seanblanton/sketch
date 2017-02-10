@@ -6,11 +6,11 @@
 	<dict>
 		<key>Resources/Info.plist</key>
 		<data>
-		rEbWfBufq5lR0NIInLSLLv8eckw=
+		VA3oD1fPY+kMkEsPNsRynczdBds=
 		</data>
 		<key>Resources/bridge.js</key>
 		<data>
-		PHLJKFo93Vn7PAPse7ZN66INVF4=
+		c8NW2Qvoke8RKsIYJ5osE9kMbYc=
 		</data>
 		<key>Resources/close.tiff</key>
 		<data>
@@ -19,6 +19,10 @@
 		<key>Resources/logo-top.tiff</key>
 		<data>
 		0nyCuXDYm65MdWtzqP1HYhVIOm8=
+		</data>
+		<key>Resources/onboarding-video.html</key>
+		<data>
+		CLvFserJ1a6ehJuvPKiD00c926U=
 		</data>
 		<key>Resources/placeholder.png</key>
 		<data>
@@ -65,11 +69,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			eHjDCzY9g84L8dznSKmiUUTXWV0=
+			i4NugwSLNpP08M8fvowLOyKD8iI=
 			</data>
 			<key>hash2</key>
 			<data>
-			5oKTZ0UEeA1G9We2SQiB3hnkS87PwEwQ1UieNYkpAu0=
+			D2TJTmq3Iz6OutJ9aa8aMiqjngRhZosRdsVtNIK2QKA=
 			</data>
 		</dict>
 		<key>Headers/ICPanelView.h</key>
@@ -109,11 +113,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			71xMXiOBa7nMwKnOpmrFOggRHl0=
+			a+EOgMYPFABL3vTWwjvga9d1HTo=
 			</data>
 			<key>hash2</key>
 			<data>
-			RGXrm9lJBefYJTuNFqVpU2KqtYtzPDQ7bzLZDgBiXDE=
+			TI4FcZYt0Zn4pr5U/X59l9IE0fWV+ZJ9rESs+fAK2gI=
 			</data>
 		</dict>
 		<key>Headers/ICTabBar.h</key>
@@ -153,11 +157,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			J65tp96PLSEhGgDgz4lbL2CZJ4o=
+			PILPN4aK/98K4jzmNaS/xA21NGQ=
 			</data>
 			<key>hash2</key>
 			<data>
-			P6szbrzMGLVR66okcIJjR6OYeQ0UrvVkOCo1yfuetl8=
+			neOVbDu1ilFQIjZDTHUb6+Pn9HDUwKutrdagAucBgxo=
 			</data>
 		</dict>
 		<key>Headers/NSArray+Random.h</key>
@@ -208,22 +212,22 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			rEbWfBufq5lR0NIInLSLLv8eckw=
+			VA3oD1fPY+kMkEsPNsRynczdBds=
 			</data>
 			<key>hash2</key>
 			<data>
-			lY43sOlK0w3FLpxLIDkvBladSTzrsoSPKUPksnwOh6E=
+			09e++WQzGiBFATcHKrXJA5kdu9Ii3+lkhejO9eqdf50=
 			</data>
 		</dict>
 		<key>Resources/bridge.js</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			PHLJKFo93Vn7PAPse7ZN66INVF4=
+			c8NW2Qvoke8RKsIYJ5osE9kMbYc=
 			</data>
 			<key>hash2</key>
 			<data>
-			uYPolOebb/PAlGXGXZE7/UHD68YVk4MgwQPhqh+TEKg=
+			siMecyZ7PQPOB6sxoa0V3Rfx63KItSYVqP1T62tRKek=
 			</data>
 		</dict>
 		<key>Resources/close.tiff</key>
@@ -246,6 +250,17 @@
 			<key>hash2</key>
 			<data>
 			PCB13mM5oAu3eyOpjf4/VlKTBJwKtClsCtWxg5Uv1XM=
+			</data>
+		</dict>
+		<key>Resources/onboarding-video.html</key>
+		<dict>
+			<key>hash</key>
+			<data>
+			CLvFserJ1a6ehJuvPKiD00c926U=
+			</data>
+			<key>hash2</key>
+			<data>
+			7+ILsjqXj1S/MJFVlyBHzRbeUda6KlEur4kbwOckIGY=
 			</data>
 		</dict>
 		<key>Resources/placeholder.png</key>

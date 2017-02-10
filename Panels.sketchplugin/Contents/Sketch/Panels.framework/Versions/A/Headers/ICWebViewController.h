@@ -26,6 +26,7 @@
 - (void)hideFullscreen;
 - (void)showOnboarding:(ICPanel *)panel;
 - (void)hideOnboarding;
+- (void)showOnboardingVideo:(ICPanel *)panel;
 
 @end
 
@@ -34,6 +35,7 @@
 @property (nonatomic, weak) id<ICWebViewControllerDelegate> delegate;
 @property (nonatomic, weak) ICSketchApi *sketchApi;
 @property (nonatomic, retain) ICPanelView *panelView;
+@property (nonatomic, retain) NSDocument *document;
 - (id)initWithPanel:(ICPanel *)panel;
 - (id)initWithPanel:(ICPanel *)panel andURL:(NSURL *)url;
 - (void)callback:(NSString *)data;
