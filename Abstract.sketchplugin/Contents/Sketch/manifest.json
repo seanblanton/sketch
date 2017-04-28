@@ -1,0 +1,30 @@
+{
+  "author" : "",
+  "commands" : [
+    {
+        "script": "script.cocoascript",
+        "shortcut": "cmd control shift a",
+        "name": "Load Abstract",
+        "identifier": "load",
+        "handlers": {
+          "actions": {
+            "OpenDocument": "onOpenDocument",
+            "run": "loadAbstract"
+          }
+        }
+    }
+  ],
+  "menu" : {
+    "items" : [
+        "load"
+    ],
+    "title" : "Abstract"
+  },
+  "identifier" : "com.abstractapp.sketchplugin.1685a5c9-5230-4d37-963c-5efa0f361065",
+  "version" : "1.0",
+  "description" : "The home of unified design",
+  "authorEmail" : "info@elasticprojects.com",
+  "name" : "Abstract",
+  "compatibleVersion": 3,
+  "bundleVersion": 1,
+}

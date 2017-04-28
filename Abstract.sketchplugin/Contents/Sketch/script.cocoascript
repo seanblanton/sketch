@@ -1,0 +1,42 @@
+function loadFramework(scriptFilePath) {
+  if (NSClassFromString("PROSketchBootstrap") == null) {
+    var mocha = Mocha.sharedRuntime();
+    var frameworkDirectory = scriptFilePath.substring(0, scriptFilePath.lastIndexOf('/'));
+NSLog(@"frameworkDirectory %@", frameworkDirectory);
+
+    var loadedFramework = [mocha loadFrameworkWithName:"ObjectiveGit" inDirectory:frameworkDirectory];
+//NSLog(@"loaded %@", loadedFramework);
+    var loadedFramework = [mocha loadFrameworkWithName:"AbstractSDK" inDirectory:frameworkDirectory];
+//NSLog(@"loaded %@", loadedFramework);
+    var loadedFramework = [mocha loadFrameworkWithName:"AbstractSketchPlugin" inDirectory:frameworkDirectory];
+//NSLog(@"loaded %@", loadedFramework);
+
+    return loadedFramework;
+  } else {
+    return true;
+  }
+
+  return false;
+}
+
+function alert(message) {
+  var app = [NSApplication sharedApplication];
+  [app displayDialog:message];
+}
+
+var loadAbstract = function(context) {
+  var path = context.scriptPath;
+  if (loadFramework(path)) {
+    var doc = context.document;
+    [PROSketchBootstrap loadBeltForDocument:doc];
+  } else {
+    alert("Could not load Abstract :(");
+  }
+}
+
+var onOpenDocument = function(context) {
+  var path = context.scriptPath;
+  if (loadFramework(path)) {
+    [PROSketchBootstrap loadBatBelts];
+  }
+}
